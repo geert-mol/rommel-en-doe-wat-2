@@ -1,0 +1,261 @@
+import { useEffect, useMemo, useReducer } from "react";
+import {
+  normalizePartNumber,
+  padProjectOrProductId,
+  slugify
+} from "./filename";
+import type {
+  AppState,
+  EngineeringElement,
+  ElementType,
+  Product,
+  Project,
+  ReleaseState
+} from "./types";
+import { nextConceptCode, nextVersion } from "./versioning";
+
+const STORAGE_KEY = "rnd-pdm-state-v1";
+
+const initialState: AppState = {
+  settings: { defaultRootPath: "C:/Engineering" },
+  projects: [],
+  products: [],
+  elements: []
+};
+
+type Action =
+  | { type: "LOAD"; payload: AppState }
+  | { type: "SET_DEFAULT_ROOT"; payload: string }
+  | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string; rootPath?: string } }
+  | { type: "SELECT_PROJECT"; payload: string }
+  | { type: "CREATE_PRODUCT"; payload: { projectId: string; productId: string; name: string } }
+  | { type: "SELECT_PRODUCT"; payload: string }
+  | {
+      type: "CREATE_ELEMENT";
+      payload: {
+        projectId: string;
+        productId: string;
+        parentElementId?: string;
+        elementType: ElementType;
+        partNumber: string;
+        description: string;
+      };
+    }
+  | { type: "ADD_CONCEPT"; payload: { elementId: string } }
+  | { type: "ADD_VERSION"; payload: { elementId: string; conceptId: string; kind: "major" | "minor" } }
+  | {
+      type: "SET_RELEASE_STATE";
+      payload: { elementId: string; conceptId: string; versionId: string; releaseState: ReleaseState };
+    };
+
+const createDefaultConcept = () => ({
+  id: crypto.randomUUID(),
+  conceptCode: "A",
+  versions: [
+    {
+      id: crypto.randomUUID(),
+      majorVersion: 1,
+      minorVersion: 0,
+      releaseState: "PT" as const,
+      createdAt: new Date().toISOString()
+    }
+  ]
+});
+
+const sortById = <T extends { name: string }>(values: T[]): T[] =>
+  [...values].sort((a, b) => a.name.localeCompare(b.name));
+
+const reducer = (state: AppState, action: Action): AppState => {
+  switch (action.type) {
+    case "LOAD":
+      return action.payload;
+    case "SET_DEFAULT_ROOT":
+      return { ...state, settings: { defaultRootPath: action.payload } };
+    case "CREATE_PROJECT": {
+      const project: Project = {
+        id: crypto.randomUUID(),
+        projectId: padProjectOrProductId(action.payload.projectId),
+        name: action.payload.name.trim(),
+        rootPath: action.payload.rootPath?.trim() || undefined
+      };
+      return {
+        ...state,
+        projects: sortById([...state.projects, project]),
+        selectedProjectId: project.id
+      };
+    }
+    case "SELECT_PROJECT":
+      return {
+        ...state,
+        selectedProjectId: action.payload,
+        selectedProductId: undefined
+      };
+    case "CREATE_PRODUCT": {
+      const product: Product = {
+        id: crypto.randomUUID(),
+        productId: padProjectOrProductId(action.payload.productId),
+        projectId: action.payload.projectId,
+        name: action.payload.name.trim()
+      };
+      return {
+        ...state,
+        products: sortById([...state.products, product]),
+        selectedProductId: product.id
+      };
+    }
+    case "SELECT_PRODUCT":
+      return { ...state, selectedProductId: action.payload };
+    case "CREATE_ELEMENT": {
+      const element: EngineeringElement = {
+        id: crypto.randomUUID(),
+        projectId: action.payload.projectId,
+        productId: action.payload.productId,
+        parentElementId: action.payload.parentElementId,
+        type: action.payload.elementType,
+        partNumber: normalizePartNumber(action.payload.partNumber),
+        descriptionSlug: slugify(action.payload.description),
+        concepts: [createDefaultConcept()]
+      };
+      return {
+        ...state,
+        elements: [...state.elements, element]
+      };
+    }
+    case "ADD_CONCEPT":
+      return {
+        ...state,
+        elements: state.elements.map((element) => {
+          if (element.id !== action.payload.elementId) return element;
+          return {
+            ...element,
+            concepts: [
+              ...element.concepts,
+              {
+                id: crypto.randomUUID(),
+                conceptCode: nextConceptCode(element.concepts.map((concept) => concept.conceptCode)),
+                versions: [
+                  {
+                    id: crypto.randomUUID(),
+                    majorVersion: 1,
+                    minorVersion: 0,
+                    releaseState: "PT",
+                    createdAt: new Date().toISOString()
+                  }
+                ]
+              }
+            ]
+          };
+        })
+      };
+    case "ADD_VERSION":
+      return {
+        ...state,
+        elements: state.elements.map((element) => {
+          if (element.id !== action.payload.elementId) return element;
+          return {
+            ...element,
+            concepts: element.concepts.map((concept) => {
+              if (concept.id !== action.payload.conceptId) return concept;
+              const latest = [...concept.versions].sort((a, b) =>
+                b.majorVersion - a.majorVersion || b.minorVersion - a.minorVersion
+              )[0];
+              return {
+                ...concept,
+                versions: [
+                  ...concept.versions,
+                  nextVersion(concept, action.payload.kind, latest?.releaseState ?? "PT")
+                ]
+              };
+            })
+          };
+        })
+      };
+    case "SET_RELEASE_STATE":
+      return {
+        ...state,
+        elements: state.elements.map((element) => {
+          if (element.id !== action.payload.elementId) return element;
+          return {
+            ...element,
+            concepts: element.concepts.map((concept) => {
+              if (concept.id !== action.payload.conceptId) return concept;
+              return {
+                ...concept,
+                versions: concept.versions.map((version) => {
+                  if (version.id !== action.payload.versionId) return version;
+                  return { ...version, releaseState: action.payload.releaseState };
+                })
+              };
+            })
+          };
+        })
+      };
+    default:
+      return state;
+  }
+};
+
+const parseStoredState = (raw: string): AppState | null => {
+  try {
+    const parsed = JSON.parse(raw) as AppState;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!Array.isArray(parsed.projects)) return null;
+    if (!Array.isArray(parsed.products)) return null;
+    if (!Array.isArray(parsed.elements)) return null;
+    if (!parsed.settings || typeof parsed.settings.defaultRootPath !== "string") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+export const useAppStore = () => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return;
+    const parsed = parseStoredState(stored);
+    if (parsed) dispatch({ type: "LOAD", payload: parsed });
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [state]);
+
+  const selectedProject = useMemo(
+    () => state.projects.find((project) => project.id === state.selectedProjectId),
+    [state.projects, state.selectedProjectId]
+  );
+
+  const selectedProduct = useMemo(
+    () => state.products.find((product) => product.id === state.selectedProductId),
+    [state.products, state.selectedProductId]
+  );
+
+  const selectedElements = useMemo(
+    () =>
+      state.elements.filter(
+        (element) =>
+          element.projectId === state.selectedProjectId &&
+          element.productId === state.selectedProductId
+      ),
+    [state.elements, state.selectedProjectId, state.selectedProductId]
+  );
+
+  const addProject = (projectId: string, name: string, rootPath?: string) =>
+    dispatch({ type: "CREATE_PROJECT", payload: { projectId, name, rootPath } });
+
+  const addProduct = (projectId: string, productId: string, name: string) =>
+    dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name } });
+
+  return {
+    state,
+    selectedProject,
+    selectedProduct,
+    selectedElements,
+    dispatch,
+    addProject,
+    addProduct
+  };
+};

@@ -1,0 +1,297 @@
+import { useMemo, useState } from "react";
+import { ElementTree } from "./components/ElementTree";
+import { padProjectOrProductId } from "./lib/filename";
+import { useAppStore } from "./lib/store";
+import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
+
+const parentCapable = new Set<ElementType>(["HA", "SA"]);
+
+function App() {
+  const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =
+    useAppStore();
+
+  const [projectForm, setProjectForm] = useState({
+    projectId: "001",
+    name: "",
+    rootPath: ""
+  });
+  const [productForm, setProductForm] = useState({
+    productId: "001",
+    name: ""
+  });
+  const [elementForm, setElementForm] = useState({
+    parentElementId: "",
+    elementType: "HA" as ElementType,
+    partNumber: "00",
+    description: ""
+  });
+
+  const productsForSelectedProject = useMemo(
+    () => state.products.filter((product) => product.projectId === selectedProject?.id),
+    [state.products, selectedProject?.id]
+  );
+
+  const parentCandidates = useMemo(
+    () => selectedElements.filter((element) => parentCapable.has(element.type)),
+    [selectedElements]
+  );
+
+  const canCreateChild = elementForm.parentElementId.length === 0 || parentCandidates.length > 0;
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <h1>Rommel en doe wat</h1>
+          <p>Prototype PDM cockpit</p>
+        </div>
+
+        <section className="panel">
+          <h2>Settings</h2>
+          <label>
+            Default root folder
+            <input
+              value={state.settings.defaultRootPath}
+              onChange={(event) =>
+                dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
+              }
+              placeholder="C:/Engineering"
+            />
+          </label>
+        </section>
+
+        <section className="panel">
+          <h2>Projects</h2>
+          <form
+            className="compact-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!projectForm.name.trim()) return;
+              addProject(projectForm.projectId, projectForm.name, projectForm.rootPath);
+              setProjectForm((prev) => ({
+                ...prev,
+                projectId: padProjectOrProductId(String(Number(prev.projectId) + 1)),
+                name: "",
+                rootPath: ""
+              }));
+            }}
+          >
+            <input
+              value={projectForm.projectId}
+              onChange={(event) =>
+                setProjectForm((prev) => ({ ...prev, projectId: event.target.value }))
+              }
+              placeholder="013"
+            />
+            <input
+              value={projectForm.name}
+              onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder="Project name"
+            />
+            <input
+              value={projectForm.rootPath}
+              onChange={(event) =>
+                setProjectForm((prev) => ({ ...prev, rootPath: event.target.value }))
+              }
+              placeholder="Optional root override"
+            />
+            <button type="submit">Create project</button>
+          </form>
+
+          <ul className="list">
+            {state.projects.map((project) => (
+              <li key={project.id}>
+                <button
+                  className={project.id === selectedProject?.id ? "active" : ""}
+                  onClick={() => dispatch({ type: "SELECT_PROJECT", payload: project.id })}
+                  type="button"
+                >
+                  {project.projectId} {project.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel">
+          <h2>Products</h2>
+          <form
+            className="compact-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!selectedProject || !productForm.name.trim()) return;
+              addProduct(selectedProject.id, productForm.productId, productForm.name);
+              setProductForm((prev) => ({
+                ...prev,
+                productId: padProjectOrProductId(String(Number(prev.productId) + 1)),
+                name: ""
+              }));
+            }}
+          >
+            <input
+              value={productForm.productId}
+              onChange={(event) =>
+                setProductForm((prev) => ({ ...prev, productId: event.target.value }))
+              }
+              placeholder="009"
+              disabled={!selectedProject}
+            />
+            <input
+              value={productForm.name}
+              onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder="Product name"
+              disabled={!selectedProject}
+            />
+            <button type="submit" disabled={!selectedProject}>
+              Create product
+            </button>
+          </form>
+
+          <ul className="list">
+            {productsForSelectedProject.map((product) => (
+              <li key={product.id}>
+                <button
+                  className={product.id === selectedProduct?.id ? "active" : ""}
+                  onClick={() => dispatch({ type: "SELECT_PRODUCT", payload: product.id })}
+                  type="button"
+                >
+                  {product.productId} {product.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </aside>
+
+      <main className="main">
+        {!selectedProject || !selectedProduct ? (
+          <section className="hero">
+            <h2>Select project + product</h2>
+            <p>Create both in left rail, then build engineering tree.</p>
+          </section>
+        ) : (
+          <>
+            <header className="workspace-header">
+              <div>
+                <p>{selectedProject.projectId}</p>
+                <h2>{selectedProject.name}</h2>
+              </div>
+              <div>
+                <p>{selectedProduct.productId}</p>
+                <h3>{selectedProduct.name}</h3>
+              </div>
+            </header>
+
+            <section className="panel element-builder">
+              <h2>New element</h2>
+              <form
+                className="element-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!selectedProject || !selectedProduct || !elementForm.description.trim()) return;
+                  if (!canCreateChild) return;
+                  dispatch({
+                    type: "CREATE_ELEMENT",
+                    payload: {
+                      projectId: selectedProject.id,
+                      productId: selectedProduct.id,
+                      parentElementId: elementForm.parentElementId || undefined,
+                      elementType: elementForm.elementType,
+                      partNumber: elementForm.partNumber,
+                      description: elementForm.description
+                    }
+                  });
+                  setElementForm((prev) => ({
+                    ...prev,
+                    description: "",
+                    partNumber: String(Number(prev.partNumber || "0") + 1).padStart(2, "0")
+                  }));
+                }}
+              >
+                <label>
+                  Parent
+                  <select
+                    value={elementForm.parentElementId}
+                    onChange={(event) =>
+                      setElementForm((prev) => ({ ...prev, parentElementId: event.target.value }))
+                    }
+                  >
+                    <option value="">(root)</option>
+                    {parentCandidates.map((parent) => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.type} {parent.partNumber} {parent.descriptionSlug}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Type
+                  <select
+                    value={elementForm.elementType}
+                    onChange={(event) =>
+                      setElementForm((prev) => ({
+                        ...prev,
+                        elementType: event.target.value as ElementType
+                      }))
+                    }
+                  >
+                    {ELEMENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Part number
+                  <input
+                    value={elementForm.partNumber}
+                    onChange={(event) =>
+                      setElementForm((prev) => ({ ...prev, partNumber: event.target.value }))
+                    }
+                    placeholder="00"
+                  />
+                </label>
+                <label className="wide">
+                  Description
+                  <input
+                    value={elementForm.description}
+                    onChange={(event) =>
+                      setElementForm((prev) => ({ ...prev, description: event.target.value }))
+                    }
+                    placeholder="balkon mini vijver"
+                  />
+                </label>
+                <button type="submit">Add element</button>
+              </form>
+            </section>
+
+            <section className="panel">
+              <h2>Engineering tree</h2>
+              <ElementTree
+                elements={selectedElements}
+                project={selectedProject}
+                product={selectedProduct}
+                defaultRootPath={state.settings.defaultRootPath}
+                onAddConcept={(elementId) =>
+                  dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
+                }
+                onAddVersion={(elementId, conceptId, kind) =>
+                  dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
+                }
+                onSetReleaseState={(elementId, conceptId, versionId, releaseState: ReleaseState) =>
+                  dispatch({
+                    type: "SET_RELEASE_STATE",
+                    payload: { elementId, conceptId, versionId, releaseState }
+                  })
+                }
+              />
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
