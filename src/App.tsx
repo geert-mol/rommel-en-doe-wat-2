@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
-import { ElementTree } from "./components/ElementTree";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
@@ -10,7 +9,6 @@ const parentCapable = new Set<ElementType>(["HA", "SA"]);
 function App() {
   const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =
     useAppStore();
-  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -180,7 +178,7 @@ function App() {
         {!selectedProject || !selectedProduct ? (
           <section className="hero">
             <h2>Select project + product</h2>
-            <p>Create both in left rail, then build engineering tree.</p>
+            <p>Create both in left rail, then build engineering structure.</p>
           </section>
         ) : (
           <>
@@ -280,49 +278,20 @@ function App() {
             </section>
 
             <section className="panel">
-              <div className="view-switch">
-                <h2>{viewMode === "tree" ? "Engineering tree" : "List view (latest only)"}</h2>
-                <div className="view-switch-actions">
-                  <button
-                    className={viewMode === "tree" ? "active" : ""}
-                    onClick={() => setViewMode("tree")}
-                    type="button"
-                  >
-                    Tree
-                  </button>
-                  <button
-                    className={viewMode === "list" ? "active" : ""}
-                    onClick={() => setViewMode("list")}
-                    type="button"
-                  >
-                    List
-                  </button>
-                </div>
-              </div>
-
-              {viewMode === "tree" ? (
-                <ElementTree
-                  elements={selectedElements}
-                  project={selectedProject}
-                  product={selectedProduct}
-                  defaultRootPath={state.settings.defaultRootPath}
-                  onAddConcept={(elementId) =>
-                    dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
-                  }
-                  onAddVersion={(elementId, conceptId, kind) =>
-                    dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
-                  }
-                  onSetReleaseState={setReleaseState}
-                />
-              ) : (
-                <ElementListView
-                  elements={selectedElements}
-                  project={selectedProject}
-                  product={selectedProduct}
-                  defaultRootPath={state.settings.defaultRootPath}
-                  onSetReleaseState={setReleaseState}
-                />
-              )}
+              <h2>Engineering list (latest only)</h2>
+              <ElementListView
+                elements={selectedElements}
+                project={selectedProject}
+                product={selectedProduct}
+                defaultRootPath={state.settings.defaultRootPath}
+                onAddConcept={(elementId) =>
+                  dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
+                }
+                onAddVersion={(elementId, conceptId, kind) =>
+                  dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
+                }
+                onSetReleaseState={setReleaseState}
+              />
             </section>
           </>
         )}
