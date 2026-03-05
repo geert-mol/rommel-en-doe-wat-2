@@ -167,22 +167,6 @@ const buildGraph = (rows: RowModel[], maxDepth: number): GraphSegment[][] => {
     pushLine(row.rowIndex, targetX, -STROKE_OVERLAP, targetX, ROW_HALF, color);
   }
 
-  for (const row of rows) {
-    if (row.parentRowIndex !== null) continue;
-    const rootX = xForLane(row.depth);
-    const rootColor = laneColor(row.depth);
-    if (row.rowIndex < rows.length - 1) {
-      pushLine(
-        row.rowIndex,
-        rootX,
-        ROW_HALF,
-        rootX,
-        ROW_HEIGHT + STROKE_OVERLAP,
-        rootColor
-      );
-    }
-  }
-
   const width = (maxDepth + 1) * LANE_STEP + GRAPH_PAD * 2;
   if (width > 0) {
     return segmentsByRow;
