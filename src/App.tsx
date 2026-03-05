@@ -4,7 +4,7 @@ import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
 
-const parentCapable = new Set<ElementType>(["HA", "SA"]);
+const parentCapable = new Set<ElementType>(["HA", "SA", "MM"]);
 
 function App() {
   const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =

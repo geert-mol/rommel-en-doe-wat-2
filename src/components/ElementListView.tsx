@@ -203,9 +203,18 @@ const BranchGraphCell = ({
   const x = xForLane(row.depth);
   const color = laneColor(row.depth);
   const isPrimaryConcept = row.conceptIndex === 0;
+  const isMotherModel = row.element.type === "MM";
   const isAssemblyNode = row.element.type === "HA" || row.element.type === "SA";
   const radius = isPrimaryConcept ? 4 : 3;
-  const nodeRadius = isAssemblyNode ? radius + 1 : radius;
+  const isLargeNode = isAssemblyNode || isMotherModel;
+  const nodeRadius = isLargeNode ? radius + 1 : radius;
+  const nodeFill = isAssemblyNode ? "#ffffff" : color;
+  const nodeStroke = isAssemblyNode
+    ? color
+    : isMotherModel
+      ? color
+      : "rgba(255,255,255,0.92)";
+  const nodeStrokeWidth = isLargeNode ? 2.2 : 1.3;
 
   return (
     <div className="branch-graph" style={{ width, height: ROW_HEIGHT }}>
@@ -241,9 +250,9 @@ const BranchGraphCell = ({
           cx={x}
           cy={ROW_HALF}
           r={nodeRadius}
-          fill={isAssemblyNode ? "#ffffff" : color}
-          stroke={isAssemblyNode ? color : "rgba(255,255,255,0.92)"}
-          strokeWidth={isAssemblyNode ? 2.2 : 1.3}
+          fill={nodeFill}
+          stroke={nodeStroke}
+          strokeWidth={nodeStrokeWidth}
         />
       </svg>
     </div>
