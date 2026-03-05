@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ElementListView } from "./components/ElementListView";
 import { ElementTree } from "./components/ElementTree";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
@@ -9,6 +10,7 @@ const parentCapable = new Set<ElementType>(["HA", "SA"]);
 function App() {
   const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =
     useAppStore();
+  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -37,6 +39,17 @@ function App() {
   );
 
   const canCreateChild = elementForm.parentElementId.length === 0 || parentCandidates.length > 0;
+  const setReleaseState = (
+    elementId: string,
+    conceptId: string,
+    versionId: string,
+    releaseState: ReleaseState
+  ) => {
+    dispatch({
+      type: "SET_RELEASE_STATE",
+      payload: { elementId, conceptId, versionId, releaseState }
+    });
+  };
 
   return (
     <div className="app">
@@ -267,25 +280,49 @@ function App() {
             </section>
 
             <section className="panel">
-              <h2>Engineering tree</h2>
-              <ElementTree
-                elements={selectedElements}
-                project={selectedProject}
-                product={selectedProduct}
-                defaultRootPath={state.settings.defaultRootPath}
-                onAddConcept={(elementId) =>
-                  dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
-                }
-                onAddVersion={(elementId, conceptId, kind) =>
-                  dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
-                }
-                onSetReleaseState={(elementId, conceptId, versionId, releaseState: ReleaseState) =>
-                  dispatch({
-                    type: "SET_RELEASE_STATE",
-                    payload: { elementId, conceptId, versionId, releaseState }
-                  })
-                }
-              />
+              <div className="view-switch">
+                <h2>{viewMode === "tree" ? "Engineering tree" : "List view (latest only)"}</h2>
+                <div className="view-switch-actions">
+                  <button
+                    className={viewMode === "tree" ? "active" : ""}
+                    onClick={() => setViewMode("tree")}
+                    type="button"
+                  >
+                    Tree
+                  </button>
+                  <button
+                    className={viewMode === "list" ? "active" : ""}
+                    onClick={() => setViewMode("list")}
+                    type="button"
+                  >
+                    List
+                  </button>
+                </div>
+              </div>
+
+              {viewMode === "tree" ? (
+                <ElementTree
+                  elements={selectedElements}
+                  project={selectedProject}
+                  product={selectedProduct}
+                  defaultRootPath={state.settings.defaultRootPath}
+                  onAddConcept={(elementId) =>
+                    dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
+                  }
+                  onAddVersion={(elementId, conceptId, kind) =>
+                    dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
+                  }
+                  onSetReleaseState={setReleaseState}
+                />
+              ) : (
+                <ElementListView
+                  elements={selectedElements}
+                  project={selectedProject}
+                  product={selectedProduct}
+                  defaultRootPath={state.settings.defaultRootPath}
+                  onSetReleaseState={setReleaseState}
+                />
+              )}
             </section>
           </>
         )}
