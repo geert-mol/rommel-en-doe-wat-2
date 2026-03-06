@@ -13,6 +13,7 @@ describe("parseAppState", () => {
           id: "element-1",
           projectId: "project-1",
           productId: "product-1",
+          parentElementIds: [],
           type: "HA",
           partNumber: "00",
           descriptionSlug: "frame-top",
@@ -47,5 +48,43 @@ describe("parseAppState", () => {
         projects: "broken"
       })
     ).toEqual(createInitialAppState());
+  });
+
+  it("migrates legacy parentElementId into parentElementIds", () => {
+    expect(
+      parseAppState({
+        settings: { defaultRootPath: "C:/Engineering" },
+        projects: [],
+        products: [],
+        elements: [
+          {
+            id: "element-1",
+            projectId: "project-1",
+            productId: "product-1",
+            parentElementId: "parent-1",
+            type: "PA",
+            partNumber: "01",
+            descriptionSlug: "bracket",
+            concepts: []
+          }
+        ]
+      })
+    ).toEqual({
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [],
+      products: [],
+      elements: [
+        {
+          id: "element-1",
+          projectId: "project-1",
+          productId: "product-1",
+          parentElementIds: ["parent-1"],
+          type: "PA",
+          partNumber: "01",
+          descriptionSlug: "bracket",
+          concepts: []
+        }
+      ]
+    });
   });
 });

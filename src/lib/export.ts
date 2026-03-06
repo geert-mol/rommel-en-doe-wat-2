@@ -3,6 +3,7 @@ import {
   formatVersionLabel,
   generateFileName
 } from "./filename";
+import { buildUsageOrder } from "./structure";
 import type {
   AppState,
   EngineeringElement,
@@ -40,42 +41,6 @@ export interface ProjectExportPayload {
   sheets: ProductExportSheet[];
 }
 
-const sortElements = (a: EngineeringElement, b: EngineeringElement): number => {
-  if (a.partNumber !== b.partNumber) {
-    return a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true });
-  }
-  if (a.type !== b.type) return a.type.localeCompare(b.type);
-  return a.descriptionSlug.localeCompare(b.descriptionSlug);
-};
-
-const buildElementOrder = (elements: EngineeringElement[]) => {
-  const byId = new Map(elements.map((element) => [element.id, element]));
-  const childMap = new Map<string | undefined, EngineeringElement[]>();
-
-  for (const element of elements) {
-    const hasKnownParent = element.parentElementId ? byId.has(element.parentElementId) : false;
-    const key = hasKnownParent ? element.parentElementId : undefined;
-    const bucket = childMap.get(key) ?? [];
-    bucket.push(element);
-    childMap.set(key, bucket);
-  }
-
-  for (const [, children] of childMap) {
-    children.sort(sortElements);
-  }
-
-  const ordered: Array<{ element: EngineeringElement; depth: number }> = [];
-  const visit = (parentId: string | undefined, depth: number) => {
-    for (const child of childMap.get(parentId) ?? []) {
-      ordered.push({ element: child, depth });
-      visit(child.id, depth + 1);
-    }
-  };
-
-  visit(undefined, 0);
-  return ordered;
-};
-
 const buildProductSheet = (
   project: Project,
   product: Product,
@@ -83,10 +48,10 @@ const buildProductSheet = (
   defaultRootPath: string
 ): ProductExportSheet => {
   const parentMap = new Map(elements.map((element) => [element.id, element]));
-  const ordered = buildElementOrder(elements);
+  const ordered = buildUsageOrder(elements);
 
-  const rows = ordered.flatMap(({ element, depth }) => {
-    const parent = element.parentElementId ? parentMap.get(element.parentElementId) : undefined;
+  const rows = ordered.flatMap(({ element, depth, parentId }) => {
+    const parent = parentId ? parentMap.get(parentId) : undefined;
     const parentLabel = parent ? `${parent.type} ${parent.partNumber} ${parent.descriptionSlug}` : "ROOT";
 
     return [...element.concepts]

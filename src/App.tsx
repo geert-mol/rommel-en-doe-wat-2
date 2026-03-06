@@ -49,7 +49,7 @@ function App() {
     name: ""
   });
   const [elementForm, setElementForm] = useState({
-    parentElementId: "",
+    parentElementIds: [] as string[],
     elementType: "HA" as ElementType,
     description: ""
   });
@@ -89,8 +89,38 @@ function App() {
     partNumberDraft.productId === selectedProduct?.id && partNumberDraft.value.length > 0
       ? partNumberDraft.value
       : suggestedPartNumber;
+  const selectedParentSummary = useMemo(() => {
+    if (elementForm.parentElementIds.length === 0) return "ROOT";
 
-  const canCreateChild = elementForm.parentElementId.length === 0 || parentCandidates.length > 0;
+    const selectedParents = parentCandidates.filter((candidate) =>
+      elementForm.parentElementIds.includes(candidate.id)
+    );
+
+    if (selectedParents.length === 0) return "ROOT";
+    if (selectedParents.length === 1) {
+      const parent = selectedParents[0];
+      return `${parent.type} ${parent.partNumber} ${parent.descriptionSlug}`;
+    }
+
+    return `${selectedParents.length} parents selected`;
+  }, [elementForm.parentElementIds, parentCandidates]);
+
+  useEffect(() => {
+    const candidateIds = new Set(parentCandidates.map((candidate) => candidate.id));
+    setElementForm((prev) => {
+      const nextParentIds = prev.parentElementIds.filter((parentId) => candidateIds.has(parentId));
+      if (
+        nextParentIds.length === prev.parentElementIds.length &&
+        nextParentIds.every((parentId, index) => parentId === prev.parentElementIds[index])
+      ) {
+        return prev;
+      }
+
+      return { ...prev, parentElementIds: nextParentIds };
+    });
+  }, [parentCandidates]);
+
+  const canCreateChild = elementForm.parentElementIds.length === 0 || parentCandidates.length > 0;
   const setReleaseState = (
     elementId: string,
     conceptId: string,
@@ -168,6 +198,15 @@ function App() {
     } finally {
       setIsBackupBusy(false);
     }
+  };
+
+  const toggleElementParentDraft = (parentId: string) => {
+    setElementForm((prev) => ({
+      ...prev,
+      parentElementIds: prev.parentElementIds.includes(parentId)
+        ? prev.parentElementIds.filter((candidateId) => candidateId !== parentId)
+        : [...prev.parentElementIds, parentId]
+    }));
   };
 
   const settingsModal = isSettingsOpen ? (
@@ -442,7 +481,7 @@ function App() {
                       payload: {
                         projectId: selectedProject.id,
                         productId: selectedProduct.id,
-                        parentElementId: elementForm.parentElementId || undefined,
+                        parentElementIds: elementForm.parentElementIds,
                         elementType: elementForm.elementType,
                         partNumber: currentPartNumber,
                         description: elementForm.description
@@ -458,21 +497,28 @@ function App() {
                     });
                   }}
                 >
-                  <label>
-                    Parent
-                    <select
-                      value={elementForm.parentElementId}
-                      onChange={(event) =>
-                        setElementForm((prev) => ({ ...prev, parentElementId: event.target.value }))
-                      }
-                    >
-                      <option value="">(root)</option>
-                      {parentCandidates.map((parent) => (
-                        <option key={parent.id} value={parent.id}>
-                          {parent.type} {parent.partNumber} {parent.descriptionSlug}
-                        </option>
-                      ))}
-                    </select>
+                  <label className="wide">
+                    Parents
+                    <details className="parent-dropdown">
+                      <summary className="parent-dropdown-trigger">{selectedParentSummary}</summary>
+                      <div className="parent-dropdown-panel">
+                        <div className="parent-checklist">
+                          <div className="parent-checklist-root">No selection = ROOT</div>
+                          {parentCandidates.map((parent) => (
+                            <label key={parent.id} className="parent-check">
+                              <input
+                                checked={elementForm.parentElementIds.includes(parent.id)}
+                                onChange={() => toggleElementParentDraft(parent.id)}
+                                type="checkbox"
+                              />
+                              <span>
+                                {parent.type} {parent.partNumber} {parent.descriptionSlug}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
                   </label>
                   <label>
                     Type
@@ -535,8 +581,8 @@ function App() {
                   onDeleteVersion={(elementId, conceptId, versionId) =>
                     dispatch({ type: "DELETE_VERSION", payload: { elementId, conceptId, versionId } })
                   }
-                  onSetElementParent={(elementId, parentElementId) =>
-                    dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementId } })
+                  onSetElementParents={(elementId, parentElementIds) =>
+                    dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementIds } })
                   }
                   onSetReleaseState={setReleaseState}
                 />

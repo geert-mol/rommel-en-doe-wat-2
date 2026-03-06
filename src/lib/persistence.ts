@@ -61,7 +61,17 @@ export const parseAppState = (value: unknown): AppState | null => {
     if (typeof element.id !== "string") return null;
     if (typeof element.projectId !== "string") return null;
     if (typeof element.productId !== "string") return null;
-    if (element.parentElementId !== undefined && typeof element.parentElementId !== "string") return null;
+    const parentElementIds = Array.isArray(element.parentElementIds)
+      ? element.parentElementIds
+      : element.parentElementId !== undefined
+        ? [element.parentElementId]
+        : [];
+    if (
+      !Array.isArray(parentElementIds) ||
+      parentElementIds.some((parentId) => typeof parentId !== "string")
+    ) {
+      return null;
+    }
     if (!isElementType(element.type)) return null;
     if (typeof element.partNumber !== "string") return null;
     if (typeof element.descriptionSlug !== "string") return null;
@@ -105,7 +115,7 @@ export const parseAppState = (value: unknown): AppState | null => {
       id: element.id,
       projectId: element.projectId,
       productId: element.productId,
-      parentElementId: element.parentElementId,
+      parentElementIds: [...new Set(parentElementIds)],
       type: element.type,
       partNumber: element.partNumber,
       descriptionSlug: element.descriptionSlug,

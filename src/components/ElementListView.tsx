@@ -6,6 +6,7 @@ import {
   formatVersionLabel,
   generateFileName
 } from "../lib/filename";
+import { buildUsageOrder, collectDescendantIds, sortElements } from "../lib/structure";
 import type {
   EngineeringElement,
   Product,
@@ -23,7 +24,7 @@ interface ElementListViewProps {
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onDeleteVersion: (elementId: string, conceptId: string, versionId: string) => void;
-  onSetElementParent: (elementId: string, parentElementId?: string) => void;
+  onSetElementParents: (elementId: string, parentElementIds: string[]) => void;
   onSetReleaseState: (
     elementId: string,
     conceptId: string,
@@ -39,6 +40,8 @@ interface RowModel {
   version: EngineeringElement["concepts"][number]["versions"][number];
   fileName: string;
   realPath: string;
+  usageId: string;
+  parentId?: string;
   parentLabel: string;
   depth: number;
   conceptIndex: number;
@@ -55,7 +58,7 @@ interface PendingDelete {
 
 interface ParentEditState {
   elementId: string;
-  selectedParentId: string;
+  selectedParentIds: string[];
 }
 
 interface HistoryState {
@@ -74,6 +77,12 @@ interface OpenMenuState {
   left: number;
   top: number;
   items: MenuItem[];
+}
+
+interface PendingParentDelete {
+  elementId: string;
+  parentId: string;
+  message: string;
 }
 
 type GraphSegment =
@@ -167,63 +176,6 @@ const KebabMenu = ({
   </button>
 );
 
-const sortElements = (a: EngineeringElement, b: EngineeringElement): number => {
-  if (a.partNumber !== b.partNumber) {
-    return a.partNumber.localeCompare(b.partNumber, undefined, { numeric: true });
-  }
-  if (a.type !== b.type) return a.type.localeCompare(b.type);
-  return a.descriptionSlug.localeCompare(b.descriptionSlug);
-};
-
-const buildElementOrder = (elements: EngineeringElement[]) => {
-  const byId = new Map(elements.map((element) => [element.id, element]));
-  const childMap = new Map<string | undefined, EngineeringElement[]>();
-
-  for (const element of elements) {
-    const hasKnownParent = element.parentElementId ? byId.has(element.parentElementId) : false;
-    const key = hasKnownParent ? element.parentElementId : undefined;
-    const bucket = childMap.get(key) ?? [];
-    bucket.push(element);
-    childMap.set(key, bucket);
-  }
-
-  for (const [, children] of childMap) {
-    children.sort(sortElements);
-  }
-
-  const ordered: Array<{ element: EngineeringElement; depth: number }> = [];
-
-  const visit = (parentId: string | undefined, depth: number) => {
-    for (const child of childMap.get(parentId) ?? []) {
-      ordered.push({ element: child, depth });
-      visit(child.id, depth + 1);
-    }
-  };
-
-  visit(undefined, 0);
-  return ordered;
-};
-
-const collectDescendantIds = (elements: EngineeringElement[], elementId: string): Set<string> => {
-  const childMap = new Map<string, string[]>();
-  for (const element of elements) {
-    if (!element.parentElementId) continue;
-    const bucket = childMap.get(element.parentElementId) ?? [];
-    bucket.push(element.id);
-    childMap.set(element.parentElementId, bucket);
-  }
-
-  const result = new Set<string>();
-  const stack = [...(childMap.get(elementId) ?? [])];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current || result.has(current)) continue;
-    result.add(current);
-    stack.push(...(childMap.get(current) ?? []));
-  }
-  return result;
-};
-
 const buildCurve = (fromX: number, toX: number): string => {
   const delta = toX - fromX;
   const c1x = fromX + delta * 0.35;
@@ -292,11 +244,15 @@ const buildGraph = (rows: RowModel[], maxDepth: number): GraphSegment[][] => {
 const BranchGraphCell = ({
   row,
   maxDepth,
-  segments
+  segments,
+  duplicateRowIndices,
+  showDuplicateTrace
 }: {
   row: RowModel;
   maxDepth: number;
   segments: GraphSegment[];
+  duplicateRowIndices: number[];
+  showDuplicateTrace: boolean;
 }) => {
   const width = (maxDepth + 1) * LANE_STEP + GRAPH_PAD * 2;
   const x = xForLane(row.depth);
@@ -314,6 +270,15 @@ const BranchGraphCell = ({
       ? color
       : "rgba(255,255,255,0.92)";
   const nodeStrokeWidth = isLargeNode ? 2.2 : 1.3;
+  const firstDuplicateRow = duplicateRowIndices[0] ?? row.rowIndex;
+  const lastDuplicateRow = duplicateRowIndices[duplicateRowIndices.length - 1] ?? row.rowIndex;
+  const duplicateTraceX = width - 5;
+  const showDuplicateStub = showDuplicateTrace && duplicateRowIndices.includes(row.rowIndex);
+  const showDuplicateSpine =
+    showDuplicateTrace &&
+    row.rowIndex >= firstDuplicateRow &&
+    row.rowIndex <= lastDuplicateRow &&
+    firstDuplicateRow !== lastDuplicateRow;
 
   return (
     <div className="branch-graph" style={{ width, height: ROW_HEIGHT }}>
@@ -345,6 +310,32 @@ const BranchGraphCell = ({
           )
         )}
 
+        {showDuplicateSpine ? (
+          <line
+            x1={duplicateTraceX}
+            y1={row.rowIndex === firstDuplicateRow ? ROW_HALF : -STROKE_OVERLAP}
+            x2={duplicateTraceX}
+            y2={row.rowIndex === lastDuplicateRow ? ROW_HALF : ROW_HEIGHT + STROKE_OVERLAP}
+            stroke="#7f8b6c"
+            strokeWidth={2}
+            strokeLinecap="round"
+            opacity={0.9}
+          />
+        ) : null}
+
+        {showDuplicateStub ? (
+          <line
+            x1={duplicateTraceX - 10}
+            y1={ROW_HALF}
+            x2={duplicateTraceX}
+            y2={ROW_HALF}
+            stroke="#7f8b6c"
+            strokeWidth={2}
+            strokeLinecap="round"
+            opacity={0.92}
+          />
+        ) : null}
+
         <circle
           cx={x}
           cy={ROW_HALF}
@@ -366,14 +357,16 @@ export const ElementListView = ({
   onAddConcept,
   onAddVersion,
   onDeleteVersion,
-  onSetElementParent,
+  onSetElementParents,
   onSetReleaseState
 }: ElementListViewProps) => {
   const [historyState, setHistoryState] = useState<HistoryState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [pendingParentDelete, setPendingParentDelete] = useState<PendingParentDelete | null>(null);
   const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
   const [copiedFilenameId, setCopiedFilenameId] = useState<string | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const copiedFilenameTimerRef = useRef<number | null>(null);
   const desktopApp = isDesktopApp();
 
@@ -386,13 +379,16 @@ export const ElementListView = ({
     []
   );
 
-  const { rows, maxDepth, segmentsByRow } = useMemo(() => {
-    const ordered = buildElementOrder(elements);
+  const { rows, maxDepth, segmentsByRow, usageRowIndicesByElementId } = useMemo(() => {
+    const ordered = buildUsageOrder(elements);
+    const usageById = new Map(ordered.map((usage) => [usage.usageId, usage]));
     const parentMap = new Map(elements.map((element) => [element.id, element]));
-    const primaryRowByElement = new Map<string, number>();
+    const primaryRowByUsageId = new Map<string, number>();
+    const usageRowIndicesByElementIdDraft = new Map<string, number[]>();
     const rowsDraft: RowModel[] = [];
 
-    for (const { element, depth } of ordered) {
+    for (const usage of ordered) {
+      const { element, depth } = usage;
       const concepts = [...element.concepts].sort((a, b) => a.conceptCode.localeCompare(b.conceptCode));
 
       concepts.forEach((concept, conceptIndex) => {
@@ -409,7 +405,7 @@ export const ElementListView = ({
           minorVersion: version.minorVersion
         });
         const realPath = buildSuggestedFilePath(fileName, element, project, product, defaultRootPath);
-        const parent = element.parentElementId ? parentMap.get(element.parentElementId) : undefined;
+        const parent = usage.parentId ? parentMap.get(usage.parentId) : undefined;
         const rowIndex = rowsDraft.length;
 
         rowsDraft.push({
@@ -419,6 +415,8 @@ export const ElementListView = ({
           version,
           fileName,
           realPath,
+          usageId: usage.usageId,
+          parentId: usage.parentId,
           parentLabel: parent ? `${parent.type}-${parent.partNumber}` : "ROOT",
           depth,
           conceptIndex,
@@ -427,7 +425,10 @@ export const ElementListView = ({
         });
 
         if (conceptIndex === 0) {
-          primaryRowByElement.set(element.id, rowIndex);
+          primaryRowByUsageId.set(usage.usageId, rowIndex);
+          const usageRows = usageRowIndicesByElementIdDraft.get(element.id) ?? [];
+          usageRows.push(rowIndex);
+          usageRowIndicesByElementIdDraft.set(element.id, usageRows);
         }
       });
     }
@@ -437,9 +438,9 @@ export const ElementListView = ({
         return { ...row, parentRowIndex: row.rowIndex - 1 };
       }
 
-      const parentId = row.element.parentElementId;
-      if (!parentId) return row;
-      const parentRowIndex = primaryRowByElement.get(parentId) ?? null;
+      const parentUsage = usageById.get(row.usageId);
+      if (!parentUsage?.parentUsageId) return row;
+      const parentRowIndex = primaryRowByUsageId.get(parentUsage.parentUsageId) ?? null;
       return { ...row, parentRowIndex };
     });
 
@@ -449,7 +450,8 @@ export const ElementListView = ({
     return {
       rows: rowsResolved,
       maxDepth: maxDepthValue,
-      segmentsByRow: segments
+      segmentsByRow: segments,
+      usageRowIndicesByElementId: usageRowIndicesByElementIdDraft
     };
   }, [defaultRootPath, elements, product, project]);
 
@@ -510,6 +512,12 @@ export const ElementListView = ({
       .filter((candidate) => {
         if (candidate.id === parentEditElement.id) return false;
         if (descendantIds.has(candidate.id)) return false;
+        if (
+          candidate.projectId !== parentEditElement.projectId ||
+          candidate.productId !== parentEditElement.productId
+        ) {
+          return false;
+        }
         return candidate.type === "HA" || candidate.type === "SA" || candidate.type === "MM";
       })
       .sort(sortElements);
@@ -526,6 +534,11 @@ export const ElementListView = ({
     message: string
   ) => {
     setPendingDelete({ elementId, conceptId, versionId, message });
+    setOpenMenu(null);
+  };
+
+  const requestDeleteParent = (elementId: string, parentId: string, message: string) => {
+    setPendingParentDelete({ elementId, parentId, message });
     setOpenMenu(null);
   };
 
@@ -554,6 +567,19 @@ export const ElementListView = ({
       setCopiedFilenameId((current) => (current === copyId ? null : current));
       copiedFilenameTimerRef.current = null;
     }, 1200);
+  };
+
+  const toggleParentSelection = (parentId: string) => {
+    setParentEdit((prev) =>
+      prev
+        ? {
+            ...prev,
+            selectedParentIds: prev.selectedParentIds.includes(parentId)
+              ? prev.selectedParentIds.filter((candidateId) => candidateId !== parentId)
+              : [...prev.selectedParentIds, parentId]
+          }
+        : prev
+    );
   };
 
   const historyModal = historyElement && historyConcept ? (
@@ -695,6 +721,47 @@ export const ElementListView = ({
     </div>
   ) : null;
 
+  const parentDeleteModal = pendingParentDelete ? (
+    <div
+      className="confirm-backdrop"
+      onClick={() => setPendingParentDelete(null)}
+      role="presentation"
+    >
+      <section
+        className="confirm-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <p className="confirm-title">Delete Parent</p>
+        <p className="confirm-message">{pendingParentDelete.message}</p>
+        <div className="confirm-actions">
+          <button className="mini-btn" onClick={() => setPendingParentDelete(null)} type="button">
+            Cancel
+          </button>
+          <button
+            className="mini-btn danger-mini"
+            onClick={() => {
+              const target = elements.find((element) => element.id === pendingParentDelete.elementId);
+              if (target) {
+                onSetElementParents(
+                  target.id,
+                  target.parentElementIds.filter(
+                    (parentId) => parentId !== pendingParentDelete.parentId
+                  )
+                );
+              }
+              setPendingParentDelete(null);
+            }}
+            type="button"
+          >
+            Delete parent
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
   const parentModal = parentEdit && parentEditElement ? (
     <div className="confirm-backdrop" onClick={() => setParentEdit(null)} role="presentation">
       <section
@@ -703,28 +770,28 @@ export const ElementListView = ({
         role="dialog"
         aria-modal="true"
       >
-        <p className="confirm-title">Change Parent</p>
+        <p className="confirm-title">Manage Parents</p>
         <p className="confirm-message">
           {parentEditElement.type} {parentEditElement.partNumber} - {parentEditElement.descriptionSlug}
         </p>
-        <label className="parent-select-label">
-          New parent
-          <select
-            value={parentEdit.selectedParentId}
-            onChange={(event) =>
-              setParentEdit((prev) =>
-                prev ? { ...prev, selectedParentId: event.target.value } : prev
-              )
-            }
-          >
-            <option value="">(root)</option>
+        <div className="parent-select-label">
+          <span>Parents</span>
+          <div className="parent-checklist parent-checklist-modal">
+            <div className="parent-checklist-root">No selection = ROOT</div>
             {parentOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.type} {option.partNumber} {option.descriptionSlug}
-              </option>
+              <label key={option.id} className="parent-check">
+                <input
+                  checked={parentEdit.selectedParentIds.includes(option.id)}
+                  onChange={() => toggleParentSelection(option.id)}
+                  type="checkbox"
+                />
+                <span>
+                  {option.type} {option.partNumber} {option.descriptionSlug}
+                </span>
+              </label>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
         <div className="confirm-actions">
           <button className="mini-btn" onClick={() => setParentEdit(null)} type="button">
             Cancel
@@ -732,7 +799,7 @@ export const ElementListView = ({
           <button
             className="mini-btn"
             onClick={() => {
-              onSetElementParent(parentEdit.elementId, parentEdit.selectedParentId || undefined);
+              onSetElementParents(parentEdit.elementId, parentEdit.selectedParentIds);
               setParentEdit(null);
             }}
             type="button"
@@ -765,12 +832,23 @@ export const ElementListView = ({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.version.id}>
+              <tr
+                key={`${row.usageId}-${row.version.id}`}
+                onMouseEnter={() => setHoveredElementId(row.element.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((current) => (current === row.element.id ? null : current))
+                }
+              >
                 <td className="branch-cell">
                   <BranchGraphCell
                     row={row}
                     maxDepth={maxDepth}
                     segments={segmentsByRow[row.rowIndex] ?? []}
+                    duplicateRowIndices={usageRowIndicesByElementId.get(row.element.id) ?? []}
+                    showDuplicateTrace={
+                      hoveredElementId === row.element.id &&
+                      (usageRowIndicesByElementId.get(row.element.id)?.length ?? 0) > 1
+                    }
                   />
                 </td>
                 <td>{row.parentLabel}</td>
@@ -804,11 +882,20 @@ export const ElementListView = ({
                     <span className="filename-text">{row.fileName}</span>
                     <button
                       aria-label={`Copy filename ${row.fileName}`}
-                      className={`filename-copy-btn ${copiedFilenameId === row.version.id ? "is-copied" : ""}`}
-                      onClick={() => void copyFilenameWithFeedback(row.version.id, row.fileName)}
+                      className={`filename-copy-btn ${copiedFilenameId === `${row.usageId}-${row.version.id}` ? "is-copied" : ""}`}
+                      onClick={() =>
+                        void copyFilenameWithFeedback(
+                          `${row.usageId}-${row.version.id}`,
+                          row.fileName
+                        )
+                      }
                       type="button"
                     >
-                      {copiedFilenameId === row.version.id ? <CheckIcon /> : <CopyIcon />}
+                      {copiedFilenameId === `${row.usageId}-${row.version.id}` ? (
+                        <CheckIcon />
+                      ) : (
+                        <CopyIcon />
+                      )}
                     </button>
                   </div>
                 </td>
@@ -875,13 +962,27 @@ export const ElementListView = ({
                           ...(row.conceptIndex === 0
                             ? [
                                 {
-                                  label: "Change parent",
+                                  label: "Manage parents",
                                   onClick: () =>
                                     setParentEdit({
                                       elementId: row.element.id,
-                                      selectedParentId: row.element.parentElementId ?? ""
+                                      selectedParentIds: [...row.element.parentElementIds]
                                     })
-                                }
+                                },
+                                ...(row.parentId
+                                  ? [
+                                      {
+                                        label: "Delete parent",
+                                        danger: true,
+                                        onClick: () =>
+                                          requestDeleteParent(
+                                            row.element.id,
+                                            row.parentId,
+                                            `Remove ${row.parentLabel} as parent for ${row.element.type} ${row.element.partNumber}?`
+                                          )
+                                      }
+                                    ]
+                                  : [])
                               ]
                             : []),
                           {
@@ -935,6 +1036,7 @@ export const ElementListView = ({
         : null}
       {historyModal ? createPortal(historyModal, document.body) : null}
       {confirmModal ? createPortal(confirmModal, document.body) : null}
+      {parentDeleteModal ? createPortal(parentDeleteModal, document.body) : null}
       {parentModal ? createPortal(parentModal, document.body) : null}
     </>
   );

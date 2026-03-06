@@ -13,6 +13,7 @@ describe("app backups", () => {
           id: "element-1",
           projectId: "project-1",
           productId: "product-1",
+          parentElementIds: [],
           type: "HA",
           partNumber: "01",
           descriptionSlug: "main-frame",

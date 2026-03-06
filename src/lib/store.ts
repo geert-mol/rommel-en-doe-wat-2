@@ -6,6 +6,7 @@ import {
   slugify
 } from "./filename";
 import { createInitialAppState } from "./persistence";
+import { collectDescendantIds } from "./structure";
 import type {
   AppState,
   EngineeringElement,
@@ -26,7 +27,7 @@ interface DeleteVersionPayload {
 
 interface SetElementParentPayload {
   elementId: string;
-  parentElementId?: string;
+  parentElementIds: string[];
 }
 
 type Action =
@@ -41,7 +42,7 @@ type Action =
       payload: {
         projectId: string;
         productId: string;
-        parentElementId?: string;
+        parentElementIds: string[];
         elementType: ElementType;
         partNumber: string;
         description: string;
@@ -72,6 +73,31 @@ const createDefaultConcept = () => ({
 
 const sortById = <T extends { name: string }>(values: T[]): T[] =>
   [...values].sort((a, b) => a.name.localeCompare(b.name));
+
+const parentCapableTypes = new Set<ElementType>(["HA", "SA", "MM"]);
+
+const dedupeParentIds = (parentElementIds: string[]): string[] => [...new Set(parentElementIds)];
+
+const resolveValidParentIds = (
+  elements: EngineeringElement[],
+  target: Pick<EngineeringElement, "id" | "projectId" | "productId">,
+  parentElementIds: string[]
+): string[] | null => {
+  const uniqueParentIds = dedupeParentIds(parentElementIds);
+  const descendants = collectDescendantIds(elements, target.id);
+
+  for (const parentId of uniqueParentIds) {
+    if (parentId === target.id) return null;
+
+    const parent = elements.find((element) => element.id === parentId);
+    if (!parent) return null;
+    if (!parentCapableTypes.has(parent.type)) return null;
+    if (parent.projectId !== target.projectId || parent.productId !== target.productId) return null;
+    if (descendants.has(parentId)) return null;
+  }
+
+  return uniqueParentIds;
+};
 
 export const deleteVersionAndCleanup = (
   elements: EngineeringElement[],
@@ -107,37 +133,27 @@ export const deleteVersionAndCleanup = (
   if (removedIds.size === 0) return updated;
 
   return updated.map((element) =>
-    element.parentElementId && removedIds.has(element.parentElementId)
-      ? { ...element, parentElementId: undefined }
+    element.parentElementIds.some((parentId) => removedIds.has(parentId))
+      ? {
+          ...element,
+          parentElementIds: element.parentElementIds.filter((parentId) => !removedIds.has(parentId))
+        }
       : element
   );
 };
 
-export const setElementParent = (
+export const setElementParents = (
   elements: EngineeringElement[],
   payload: SetElementParentPayload
 ): EngineeringElement[] => {
-  const { elementId, parentElementId } = payload;
+  const { elementId, parentElementIds } = payload;
   const target = elements.find((element) => element.id === elementId);
   if (!target) return elements;
-  if (parentElementId === elementId) return elements;
-
-  if (parentElementId) {
-    const parent = elements.find((element) => element.id === parentElementId);
-    if (!parent) return elements;
-    if (!(parent.type === "HA" || parent.type === "SA" || parent.type === "MM")) return elements;
-    if (parent.productId !== target.productId || parent.projectId !== target.projectId) return elements;
-  }
-
-  const byId = new Map(elements.map((element) => [element.id, element]));
-  let cursor = parentElementId;
-  while (cursor) {
-    if (cursor === elementId) return elements;
-    cursor = byId.get(cursor)?.parentElementId;
-  }
+  const nextParentIds = resolveValidParentIds(elements, target, parentElementIds);
+  if (nextParentIds === null) return elements;
 
   return elements.map((element) =>
-    element.id === elementId ? { ...element, parentElementId } : element
+    element.id === elementId ? { ...element, parentElementIds: nextParentIds } : element
   );
 };
 
@@ -182,11 +198,23 @@ const reducer = (state: AppState, action: Action): AppState => {
     case "SELECT_PRODUCT":
       return { ...state, selectedProductId: action.payload };
     case "CREATE_ELEMENT": {
+      const elementId = crypto.randomUUID();
+      const parentElementIds =
+        resolveValidParentIds(
+          state.elements,
+          {
+            id: elementId,
+            projectId: action.payload.projectId,
+            productId: action.payload.productId
+          },
+          action.payload.parentElementIds
+        ) ?? [];
+
       const element: EngineeringElement = {
-        id: crypto.randomUUID(),
+        id: elementId,
         projectId: action.payload.projectId,
         productId: action.payload.productId,
-        parentElementId: action.payload.parentElementId,
+        parentElementIds,
         type: action.payload.elementType,
         partNumber: normalizePartNumber(action.payload.partNumber),
         descriptionSlug: slugify(action.payload.description),
@@ -274,7 +302,7 @@ const reducer = (state: AppState, action: Action): AppState => {
     case "SET_ELEMENT_PARENT":
       return {
         ...state,
-        elements: setElementParent(state.elements, action.payload)
+        elements: setElementParents(state.elements, action.payload)
       };
     default:
       return state;

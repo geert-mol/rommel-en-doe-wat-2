@@ -42,7 +42,7 @@ interface EngineeringElement {
   id: string;
   projectId: string;
   productId: string;
-  parentElementId?: string;
+  parentElementIds: string[];
   type: ElementType;
   partNumber: string;
   descriptionSlug: string;
@@ -86,6 +86,11 @@ interface ConceptRow {
   id: string;
   element_ref: string;
   concept_code: string;
+}
+
+interface ParentLinkRow {
+  element_ref: string;
+  parent_element_ref: string;
 }
 
 interface VersionRow {
@@ -174,6 +179,14 @@ const getDatabase = (): Database.Database => {
       FOREIGN KEY (element_ref) REFERENCES elements(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS element_parent_links (
+      element_ref TEXT NOT NULL,
+      parent_element_ref TEXT NOT NULL,
+      PRIMARY KEY (element_ref, parent_element_ref),
+      FOREIGN KEY (element_ref) REFERENCES elements(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_element_ref) REFERENCES elements(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS versions (
       id TEXT PRIMARY KEY,
       concept_ref TEXT NOT NULL,
@@ -187,9 +200,39 @@ const getDatabase = (): Database.Database => {
     CREATE INDEX IF NOT EXISTS idx_products_project_ref ON products(project_ref);
     CREATE INDEX IF NOT EXISTS idx_elements_product_ref ON elements(product_ref);
     CREATE INDEX IF NOT EXISTS idx_elements_parent_ref ON elements(parent_element_ref);
+    CREATE INDEX IF NOT EXISTS idx_parent_links_parent_ref ON element_parent_links(parent_element_ref);
     CREATE INDEX IF NOT EXISTS idx_concepts_element_ref ON concepts(element_ref);
     CREATE INDEX IF NOT EXISTS idx_versions_concept_ref ON versions(concept_ref);
   `);
+
+  const parentLinkCount = (
+    database
+      .prepare("SELECT COUNT(*) as count FROM element_parent_links")
+      .get() as { count: number | bigint }
+  ).count;
+
+  if (Number(parentLinkCount) === 0) {
+    const legacyParentLinks = database
+      .prepare(
+        `
+          SELECT id as element_ref, parent_element_ref
+          FROM elements
+          WHERE parent_element_ref IS NOT NULL
+        `
+      )
+      .all() as ParentLinkRow[];
+
+    const parentLinkStatement = database.prepare(
+      `
+        INSERT OR IGNORE INTO element_parent_links (element_ref, parent_element_ref)
+        VALUES (@element_ref, @parent_element_ref)
+      `
+    );
+
+    for (const parentLink of legacyParentLinks) {
+      parentLinkStatement.run(parentLink);
+    }
+  }
 
   database
     .prepare(
@@ -204,10 +247,11 @@ const getDatabase = (): Database.Database => {
   return database;
 };
 
-const saveStateTxn = (db: Database.Database) =>
+  const saveStateTxn = (db: Database.Database) =>
   db.transaction((state: AppState) => {
     db.prepare("DELETE FROM versions").run();
     db.prepare("DELETE FROM concepts").run();
+    db.prepare("DELETE FROM element_parent_links").run();
     db.prepare("DELETE FROM elements").run();
     db.prepare("DELETE FROM products").run();
     db.prepare("DELETE FROM projects").run();
@@ -258,6 +302,12 @@ const saveStateTxn = (db: Database.Database) =>
       `
         INSERT INTO concepts (id, element_ref, concept_code)
         VALUES (@id, @element_ref, @concept_code)
+      `
+    );
+    const parentLinkStatement = db.prepare(
+      `
+        INSERT INTO element_parent_links (element_ref, parent_element_ref)
+        VALUES (@element_ref, @parent_element_ref)
       `
     );
     const versionStatement = db.prepare(
@@ -311,11 +361,18 @@ const saveStateTxn = (db: Database.Database) =>
         id: element.id,
         project_ref: element.projectId,
         product_ref: element.productId,
-        parent_element_ref: element.parentElementId ?? null,
+        parent_element_ref: null,
         type: element.type,
         part_number: element.partNumber,
         description_slug: element.descriptionSlug
       });
+
+      for (const parentElementId of element.parentElementIds) {
+        parentLinkStatement.run({
+          element_ref: element.id,
+          parent_element_ref: parentElementId
+        });
+      }
 
       for (const concept of element.concepts) {
         conceptStatement.run({
@@ -374,6 +431,15 @@ export const loadState = (): AppState => {
   const concepts = db
     .prepare("SELECT id, element_ref, concept_code FROM concepts ORDER BY concept_code")
     .all() as ConceptRow[];
+  const parentLinks = db
+    .prepare(
+      `
+        SELECT element_ref, parent_element_ref
+        FROM element_parent_links
+        ORDER BY parent_element_ref, element_ref
+      `
+    )
+    .all() as ParentLinkRow[];
   const versions = db
     .prepare(
       `
@@ -416,6 +482,13 @@ export const loadState = (): AppState => {
     conceptsByElementId.set(concept.element_ref, bucket);
   }
 
+  const parentIdsByElementId = new Map<string, string[]>();
+  for (const parentLink of parentLinks) {
+    const bucket = parentIdsByElementId.get(parentLink.element_ref) ?? [];
+    bucket.push(parentLink.parent_element_ref);
+    parentIdsByElementId.set(parentLink.element_ref, bucket);
+  }
+
   return {
     settings: {
       defaultRootPath: settings?.default_root_path ?? createInitialState().settings.defaultRootPath
@@ -436,7 +509,7 @@ export const loadState = (): AppState => {
       id: element.id,
       projectId: element.project_ref,
       productId: element.product_ref,
-      parentElementId: element.parent_element_ref ?? undefined,
+      parentElementIds: parentIdsByElementId.get(element.id) ?? [],
       type: element.type,
       partNumber: element.part_number,
       descriptionSlug: element.description_slug,

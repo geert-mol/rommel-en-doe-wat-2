@@ -42,7 +42,7 @@ export interface EngineeringElement {
   id: string;
   projectId: string;
   productId: string;
-  parentElementId?: string;
+  parentElementIds: string[];
   type: ElementType;
   partNumber: string;
   descriptionSlug: string;

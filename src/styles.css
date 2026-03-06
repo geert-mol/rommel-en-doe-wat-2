@@ -143,6 +143,87 @@ select {
   align-items: center;
 }
 
+.parent-checklist {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 8.5rem;
+  overflow: auto;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.parent-checklist-root {
+  font-size: 0.74rem;
+  color: #6a756f;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px dashed #ddd3bd;
+}
+
+.parent-check {
+  display: flex;
+  gap: 0.45rem;
+  align-items: start;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.parent-check input {
+  margin-top: 0.18rem;
+}
+
+.parent-dropdown {
+  position: relative;
+}
+
+.parent-dropdown[open] {
+  z-index: 4;
+}
+
+.parent-dropdown-trigger {
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem 0.55rem 0.65rem;
+  background: #fff;
+  cursor: pointer;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.parent-dropdown-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.parent-dropdown-trigger::after {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid #61707a;
+  border-bottom: 2px solid #61707a;
+  transform: rotate(45deg) translateY(-2px);
+  flex: 0 0 auto;
+}
+
+.parent-dropdown[open] .parent-dropdown-trigger::after {
+  transform: rotate(-135deg) translateX(-2px);
+}
+
+.parent-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+}
+
+.parent-dropdown-panel .parent-checklist {
+  box-shadow: 0 12px 26px rgba(16, 25, 32, 0.14);
+}
+
 button {
   border: 1px solid transparent;
   border-radius: 8px;

@@ -59,12 +59,16 @@ export const ElementTree = ({
   onSetReleaseState
 }: ElementTreeProps) => {
   const tree = useMemo(() => {
+    const byId = new Map(elements.map((element) => [element.id, element]));
     const map = new Map<string | undefined, EngineeringElement[]>();
     for (const element of elements) {
-      const key = element.parentElementId;
-      const bucket = map.get(key) ?? [];
-      bucket.push(element);
-      map.set(key, bucket);
+      const parentIds = element.parentElementIds.filter((parentId) => byId.has(parentId));
+      const keys = parentIds.length > 0 ? parentIds : [undefined];
+      for (const key of keys) {
+        const bucket = map.get(key) ?? [];
+        bucket.push(element);
+        map.set(key, bucket);
+      }
     }
     for (const [, value] of map) {
       value.sort((a, b) => a.partNumber.localeCompare(b.partNumber));

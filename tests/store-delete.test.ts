@@ -6,6 +6,7 @@ const baseElement = (id: string): EngineeringElement => ({
   id,
   projectId: "p",
   productId: "prd",
+  parentElementIds: [],
   type: "HA",
   partNumber: "00",
   descriptionSlug: id,
@@ -120,7 +121,7 @@ describe("deleteVersionAndCleanup", () => {
 
     const child: EngineeringElement = {
       ...baseElement("child"),
-      parentElementId: "parent",
+      parentElementIds: ["parent"],
       type: "PA",
       partNumber: "01",
       concepts: [
@@ -142,7 +143,7 @@ describe("deleteVersionAndCleanup", () => {
 
     const grandchild: EngineeringElement = {
       ...baseElement("grandchild"),
-      parentElementId: "child",
+      parentElementIds: ["child"],
       type: "PA",
       partNumber: "02",
       concepts: [
@@ -169,7 +170,9 @@ describe("deleteVersionAndCleanup", () => {
     });
 
     expect(result.map((element) => element.id)).toEqual(["child", "grandchild"]);
-    expect(result.find((element) => element.id === "child")?.parentElementId).toBeUndefined();
-    expect(result.find((element) => element.id === "grandchild")?.parentElementId).toBe("child");
+    expect(result.find((element) => element.id === "child")?.parentElementIds).toEqual([]);
+    expect(result.find((element) => element.id === "grandchild")?.parentElementIds).toEqual([
+      "child"
+    ]);
   });
 });
