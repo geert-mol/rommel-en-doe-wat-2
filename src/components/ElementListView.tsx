@@ -731,6 +731,15 @@ export const ElementListView = ({
                 <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
                 <td>
                   <div className="dense-actions">
+                    {desktopApp && (
+                      <button
+                        className="mini-btn"
+                        onClick={() => void revealPathWithFeedback(row.realPath)}
+                        type="button"
+                      >
+                        Reveal
+                      </button>
+                    )}
                     <button
                       className="mini-btn"
                       onClick={() => onAddConcept(row.element.id)}
@@ -759,18 +768,6 @@ export const ElementListView = ({
                           label: "Copy name",
                           onClick: () => void copyToClipboard(row.fileName)
                         },
-                        ...(desktopApp
-                          ? [
-                              {
-                                label: "Open path",
-                                onClick: () => void openFilePath(row.realPath)
-                              },
-                              {
-                                label: "Reveal folder",
-                                onClick: () => void revealPathWithFeedback(row.realPath)
-                              }
-                            ]
-                          : []),
                         {
                           label: "Copy path",
                           onClick: () => void copyToClipboard(row.realPath)
