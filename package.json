@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "test": "vitest run --coverage",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "pack": "npm run build && electron-builder --dir",
-    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "pack": "npm run build && node scripts/package-win.mjs --dir",
+    "dist:win": "npm run build && node scripts/package-win.mjs --win nsis portable",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [
@@ -75,8 +75,7 @@
       "**/*.node"
     ],
     "win": {
-      "icon": "build/icon.ico",
-      "signAndEditExecutable": false,
+      "icon": "icon.ico",
       "verifyUpdateCodeSignature": false,
       "target": [
         "nsis",

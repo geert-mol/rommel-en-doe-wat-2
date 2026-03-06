@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
 import { exportProjectExcel } from "./lib/desktop-export";
 import { buildProjectExportPayload } from "./lib/export";
-import { getStorageLocation, isDesktopApp, pickDirectory } from "./lib/desktop";
+import { isDesktopApp, pickDirectory } from "./lib/desktop";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
@@ -27,12 +27,10 @@ function App() {
     selectedElements,
     isHydrating,
     storageError,
-    storageMode,
     dispatch,
     addProject,
     addProduct
   } = useAppStore();
-  const [storageLocation, setStorageLocation] = useState<string | null>(null);
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -55,21 +53,6 @@ function App() {
     value: string;
   }>({ value: "" });
   const desktopApp = isDesktopApp();
-
-  useEffect(() => {
-    if (!desktopApp) return;
-
-    let isCancelled = false;
-    void getStorageLocation().then((location) => {
-      if (!isCancelled) {
-        setStorageLocation(location);
-      }
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [desktopApp]);
 
   const productsForSelectedProject = useMemo(
     () => state.products.filter((product) => product.projectId === selectedProject?.id),
@@ -156,14 +139,6 @@ function App() {
               )}
             </div>
           </label>
-          {/* <p className="helper-text">
-            Storage: {storageMode === "sqlite" ? "desktop SQLite" : "browser local fallback"}
-          </p>
-          {storageLocation && (
-            <p className="helper-text mono-hint" title={storageLocation}>
-              {storageLocation}
-            </p>
-          )} */}
           {storageError && <p className="helper-text error-text">{storageError}</p>}
         </section>
 
