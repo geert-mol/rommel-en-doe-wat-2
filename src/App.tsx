@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ElementListView } from "./components/ElementListView";
 import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
+import {
+  checkForDesktopUpdates,
+  getDesktopUpdateState,
+  installDesktopUpdate,
+  subscribeToDesktopUpdates,
+  type DesktopUpdateState
+} from "./lib/desktop-updater";
 import { exportProjectExcel } from "./lib/desktop-export";
 import { buildProjectExportPayload } from "./lib/export";
 import { isDesktopApp, pickDirectory, saveAppState } from "./lib/desktop";
@@ -58,6 +65,8 @@ function App() {
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
+  const [isUpdateActionBusy, setIsUpdateActionBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
   const [parentDropdownRect, setParentDropdownRect] = useState<{
@@ -100,6 +109,28 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!desktopApp) return;
+
+    let isCancelled = false;
+
+    void getDesktopUpdateState().then((nextState) => {
+      if (isCancelled || !nextState) return;
+      setUpdateState(nextState);
+    });
+
+    const unsubscribe = subscribeToDesktopUpdates((nextState) => {
+      if (isCancelled) return;
+      setUpdateState(nextState);
+      setIsUpdateActionBusy(false);
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubscribe();
+    };
+  }, [desktopApp]);
 
   useEffect(() => {
     if (!pendingDelete) return;
@@ -292,6 +323,23 @@ function App() {
     }));
   };
 
+  const checkForUpdates = async () => {
+    setIsUpdateActionBusy(true);
+    try {
+      const nextState = await checkForDesktopUpdates();
+      if (nextState) {
+        setUpdateState(nextState);
+      }
+    } finally {
+      setIsUpdateActionBusy(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    setIsUpdateActionBusy(true);
+    await installDesktopUpdate();
+  };
+
   const confirmDelete = () => {
     if (!pendingDelete) return;
 
@@ -334,6 +382,18 @@ function App() {
         document.body
       )
     : null;
+
+  const updateProgressLabel =
+    updateState?.status === "downloading" && typeof updateState.progressPercent === "number"
+      ? `${Math.round(updateState.progressPercent)}% downloaded`
+      : null;
+  const updateActionLabel =
+    updateState?.status === "checking"
+      ? "Checking..."
+      : updateState?.status === "downloading"
+        ? "Downloading..."
+        : "Check for Updates";
+  const currentVersionLabel = updateState?.currentVersion ?? "Unknown";
 
   const deleteModal = pendingDelete ? (
     <div className="confirm-backdrop" onClick={() => setPendingDelete(null)} role="presentation">
@@ -448,6 +508,49 @@ function App() {
               </p>
             )}
           </section>
+          <section className="settings-card">
+            <h3>Updates</h3>
+            <p className="helper-text settings-copy">
+              Packaged desktop builds check GitHub Releases for newer versions and download them in
+              the background.
+            </p>
+            <div className="settings-status-list">
+              <p className="helper-text">
+                Current version: <strong>{currentVersionLabel}</strong>
+              </p>
+              <p className="helper-text">
+                {updateState?.message ??
+                  (desktopApp
+                    ? "Waiting for updater status..."
+                    : "Automatic updates are desktop-only.")}
+              </p>
+              {updateProgressLabel && <p className="helper-text">{updateProgressLabel}</p>}
+            </div>
+            {desktopApp && (
+              <div className="backup-actions settings-actions">
+                <button
+                  className="secondary-btn"
+                  disabled={
+                    isUpdateActionBusy ||
+                    updateState?.status === "checking" ||
+                    updateState?.status === "downloading"
+                  }
+                  onClick={() => void checkForUpdates()}
+                  type="button"
+                >
+                  {updateActionLabel}
+                </button>
+                <button
+                  className="secondary-btn"
+                  disabled={updateState?.status !== "downloaded" || isUpdateActionBusy}
+                  onClick={() => void installUpdate()}
+                  type="button"
+                >
+                  Install and Restart
+                </button>
+              </div>
+            )}
+          </section>
         </div>
       </section>
     </div>
@@ -464,7 +567,7 @@ function App() {
                 <p>Prototype PDM cockpit</p>
               </div>
               <button
-                className={`settings-launcher ${storageError ? "has-alert" : ""}`.trim()}
+                className={`settings-launcher ${storageError || updateState?.status === "downloaded" ? "has-alert" : ""}`.trim()}
                 onClick={() => setIsSettingsOpen(true)}
                 type="button"
               >

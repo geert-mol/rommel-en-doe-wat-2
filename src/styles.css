@@ -408,6 +408,15 @@ button:hover {
   margin-top: 0;
 }
 
+.settings-status-list {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.settings-actions {
+  margin-top: 0.8rem;
+}
+
 .main {
   padding: 1.5rem;
   overflow-y: auto;

@@ -26,10 +26,15 @@
     "pwa",
     "engineering"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geert-mol/rommel-en-doe-wat-2.git"
+  },
   "author": "Geert Mol",
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^12.6.2",
+    "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
@@ -74,6 +79,14 @@
     "asarUnpack": [
       "**/*.node"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "geert-mol",
+        "repo": "rommel-en-doe-wat-2",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "icon": "icon.ico",
       "verifyUpdateCodeSignature": false,
@@ -81,6 +94,12 @@
         "nsis",
         "portable"
       ]
+    },
+    "nsis": {
+      "artifactName": "Rommel-en-doe-wat-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Rommel-en-doe-wat-${version}-Portable.${ext}"
     }
   }
 }

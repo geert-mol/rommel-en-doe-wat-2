@@ -22,6 +22,21 @@ contextBridge.exposeInMainWorld("rndDesktop", {
   export: {
     projectExcel: (payload: unknown) => ipcRenderer.invoke("export:project-excel", payload)
   },
+  updater: {
+    getState: () => ipcRenderer.invoke("updater:get-state"),
+    check: () => ipcRenderer.invoke("updater:check"),
+    install: () => ipcRenderer.invoke("updater:install"),
+    subscribe: (listener: (state: unknown) => void) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
+        listener(state);
+      };
+
+      ipcRenderer.on("updater:state-changed", wrappedListener);
+      return () => {
+        ipcRenderer.removeListener("updater:state-changed", wrappedListener);
+      };
+    }
+  },
   log: {
     location: () => ipcRenderer.invoke("log:location"),
     error: (message: string, details?: string) =>

@@ -20,7 +20,11 @@ Workflow:
    - `minor` if commits since last `v*` tag include any `feat:`
    - otherwise `patch`
    - if no prior `v*` tag exists yet, default to `patch`
-4. Script also commits and pushes the app repo version bump (`package.json`, `package-lock.json`) and creates/pushes tag `v<version>`.
+4. Script also commits and pushes the app repo version bump (`package.json`, `package-lock.json`), creates/pushes tag `v<version>`, and publishes the updater assets to the GitHub Release for that tag:
+   - `latest.yml`
+   - NSIS installer
+   - NSIS blockmap
+   - portable `.exe`
 5. Preserve unrelated marketing-repo edits. Only stage `downloads/Rommel-en-doe-wat-Setup.exe`.
 6. Run:
 
@@ -35,5 +39,6 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Geert\Projects\rommel-en-doe-w
    - `-TargetPath <path>`: copy somewhere else; combine with `-NoCommit`
 8. Verify the copied installer exists and report:
    - app repo version bump commit/tag/push target
+   - GitHub Release tag/assets published
    - marketing commit hash/message/push target
 9. Push the marketing repo immediately after the installer commit. Do not leave release commits unpushed.

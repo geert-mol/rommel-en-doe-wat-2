@@ -14,6 +14,7 @@ $MarketingRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing"
 $DefaultTargetPath = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe"
 $TrackedInstallerPath = "downloads/Rommel-en-doe-wat-Setup.exe"
 $RemoteName = "origin"
+$GitHubReleaseRepo = "geert-mol/rommel-en-doe-wat-2"
 $VersionFiles = @("package.json", "package-lock.json")
 $AllowedGeneratedPrefixes = @("coverage/", "dist/", "dist-electron/", "release/")
 
@@ -120,6 +121,39 @@ function Get-CurrentBranchName {
   return $branchName
 }
 
+function Publish-GitHubRelease {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$TagName,
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+    [Parameter(Mandatory = $true)]
+    [string[]]$AssetPaths
+  )
+
+  $existingRelease = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "gh" -Arguments @("release", "view", $TagName, "--repo", $GitHubReleaseRepo) -AllowFailure) -join "").Trim()
+  if ([string]::IsNullOrWhiteSpace($existingRelease)) {
+    Invoke-External -WorkingDirectory $AppRepo -Command "gh" -Arguments (
+      @(
+        "release",
+        "create",
+        $TagName,
+        "--repo",
+        $GitHubReleaseRepo,
+        "--title",
+        "v$Version",
+        "--notes",
+        "Automatic desktop release for v$Version."
+      ) + $AssetPaths
+    )
+    return
+  }
+
+  Invoke-External -WorkingDirectory $AppRepo -Command "gh" -Arguments (
+    @("release", "upload", $TagName, "--repo", $GitHubReleaseRepo, "--clobber") + $AssetPaths
+  )
+}
+
 if (-not (Test-Path $AppRepo -PathType Container)) {
   throw "App repo not found: $AppRepo"
 }
@@ -173,7 +207,10 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 Write-Host ("Version bump: {0} -> {1} ({2})" -f $currentVersion, $version, $bumpLevel)
 Invoke-External -WorkingDirectory $AppRepo -Command "npm.cmd" -Arguments @("version", $bumpLevel, "--no-git-tag-version")
 
-$sourceInstaller = Join-Path $AppRepo ("release\Rommel en doe wat Setup {0}.exe" -f $version)
+$sourceInstaller = Join-Path $AppRepo ("release\Rommel-en-doe-wat-Setup-{0}.exe" -f $version)
+$sourceInstallerBlockMap = Join-Path $AppRepo ("release\Rommel-en-doe-wat-Setup-{0}.exe.blockmap" -f $version)
+$sourcePortable = Join-Path $AppRepo ("release\Rommel-en-doe-wat-{0}-Portable.exe" -f $version)
+$sourceLatestManifest = Join-Path $AppRepo "release\latest.yml"
 
 if (-not $SkipChecks) {
   Invoke-External -WorkingDirectory $AppRepo -Command "npm.cmd" -Arguments @("run", "check")
@@ -185,6 +222,15 @@ if (-not $SkipBuild) {
 
 if (-not (Test-Path $sourceInstaller -PathType Leaf)) {
   throw "Installer not found after build: $sourceInstaller"
+}
+if (-not (Test-Path $sourceInstallerBlockMap -PathType Leaf)) {
+  throw "Installer blockmap not found after build: $sourceInstallerBlockMap"
+}
+if (-not (Test-Path $sourceLatestManifest -PathType Leaf)) {
+  throw "Updater manifest not found after build: $sourceLatestManifest"
+}
+if (-not (Test-Path $sourcePortable -PathType Leaf)) {
+  throw "Portable executable not found after build: $sourcePortable"
 }
 
 $targetDirectory = Split-Path -Parent $resolvedTargetPath
@@ -253,6 +299,13 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "git push tag failed with exit code $LASTEXITCODE"
   }
+
+  Publish-GitHubRelease -TagName $releaseTagName -Version $version -AssetPaths @(
+    $sourceInstaller,
+    $sourceInstallerBlockMap,
+    $sourcePortable,
+    $sourceLatestManifest
+  )
 
   $appCommitHash = (& git rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0) {

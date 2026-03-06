@@ -26,6 +26,14 @@ interface DesktopBridge {
       payload: import("./lib/export").ProjectExportPayload
     ) => Promise<string | null>;
   };
+  updater: {
+    getState: () => Promise<import("./lib/desktop-updater").DesktopUpdateState>;
+    check: () => Promise<import("./lib/desktop-updater").DesktopUpdateState>;
+    install: () => Promise<void>;
+    subscribe: (
+      listener: (state: import("./lib/desktop-updater").DesktopUpdateState) => void
+    ) => () => void;
+  };
   log: {
     location: () => Promise<string>;
     error: (message: string, details?: string) => void;

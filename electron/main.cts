@@ -5,6 +5,7 @@ import path from "node:path";
 import { getStateDatabasePath, loadState, saveState } from "./db.cjs";
 import { writeProjectExportWorkbook } from "./exporter.cjs";
 import { getLogFilePath, logError, logInfo } from "./logger.cjs";
+import { initializeAutoUpdater, registerUpdaterHandlers } from "./updater.cjs";
 
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
 
@@ -187,6 +188,7 @@ const registerIpcHandlers = () => {
 
     logInfo(`Renderer: ${payload.message ?? "Unknown message"}`, payload.details);
   });
+  registerUpdaterHandlers();
 };
 
 app.setAppUserModelId("com.geertmol.rndpdm");
@@ -207,6 +209,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers();
   createMainWindow();
+  initializeAutoUpdater();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
