@@ -320,6 +320,9 @@ function App() {
                 onDeleteVersion={(elementId, conceptId, versionId) =>
                   dispatch({ type: "DELETE_VERSION", payload: { elementId, conceptId, versionId } })
                 }
+                onSetElementParent={(elementId, parentElementId) =>
+                  dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementId } })
+                }
                 onSetReleaseState={setReleaseState}
               />
             </section>

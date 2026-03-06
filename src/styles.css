@@ -513,6 +513,10 @@ button:hover {
   gap: 0.4rem;
 }
 
+.parent-select-label {
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 1000px) {
   .app {
     grid-template-columns: 1fr;

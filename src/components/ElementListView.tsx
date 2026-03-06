@@ -22,6 +22,7 @@ interface ElementListViewProps {
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onDeleteVersion: (elementId: string, conceptId: string, versionId: string) => void;
+  onSetElementParent: (elementId: string, parentElementId?: string) => void;
   onSetReleaseState: (
     elementId: string,
     conceptId: string,
@@ -49,6 +50,11 @@ interface PendingDelete {
   conceptId: string;
   versionId: string;
   message: string;
+}
+
+interface ParentEditState {
+  elementId: string;
+  selectedParentId: string;
 }
 
 type GraphSegment =
@@ -116,6 +122,26 @@ const buildElementOrder = (elements: EngineeringElement[]) => {
 
   visit(undefined, 0);
   return ordered;
+};
+
+const collectDescendantIds = (elements: EngineeringElement[], elementId: string): Set<string> => {
+  const childMap = new Map<string, string[]>();
+  for (const element of elements) {
+    if (!element.parentElementId) continue;
+    const bucket = childMap.get(element.parentElementId) ?? [];
+    bucket.push(element.id);
+    childMap.set(element.parentElementId, bucket);
+  }
+
+  const result = new Set<string>();
+  const stack = [...(childMap.get(elementId) ?? [])];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || result.has(current)) continue;
+    result.add(current);
+    stack.push(...(childMap.get(current) ?? []));
+  }
+  return result;
 };
 
 const buildCurve = (fromX: number, toX: number): string => {
@@ -260,10 +286,12 @@ export const ElementListView = ({
   onAddConcept,
   onAddVersion,
   onDeleteVersion,
+  onSetElementParent,
   onSetReleaseState
 }: ElementListViewProps) => {
   const [historyElementId, setHistoryElementId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
 
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
@@ -375,6 +403,23 @@ export const ElementListView = ({
         })
       );
   }, [defaultRootPath, historyElement, product, project]);
+
+  const parentEditElement = useMemo(
+    () => elements.find((element) => element.id === parentEdit?.elementId) ?? null,
+    [elements, parentEdit?.elementId]
+  );
+
+  const parentOptions = useMemo(() => {
+    if (!parentEditElement) return [];
+    const descendantIds = collectDescendantIds(elements, parentEditElement.id);
+    return elements
+      .filter((candidate) => {
+        if (candidate.id === parentEditElement.id) return false;
+        if (descendantIds.has(candidate.id)) return false;
+        return candidate.type === "HA" || candidate.type === "SA" || candidate.type === "MM";
+      })
+      .sort(sortElements);
+  }, [elements, parentEditElement]);
 
   if (rows.length === 0) {
     return <p className="empty">No rows yet. List appears when elements are added.</p>;
@@ -502,6 +547,55 @@ export const ElementListView = ({
     </div>
   ) : null;
 
+  const parentModal = parentEdit && parentEditElement ? (
+    <div className="confirm-backdrop" onClick={() => setParentEdit(null)} role="presentation">
+      <section
+        className="confirm-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <p className="confirm-title">Change Parent</p>
+        <p className="confirm-message">
+          {parentEditElement.type} {parentEditElement.partNumber} - {parentEditElement.descriptionSlug}
+        </p>
+        <label className="parent-select-label">
+          New parent
+          <select
+            value={parentEdit.selectedParentId}
+            onChange={(event) =>
+              setParentEdit((prev) =>
+                prev ? { ...prev, selectedParentId: event.target.value } : prev
+              )
+            }
+          >
+            <option value="">(root)</option>
+            {parentOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.type} {option.partNumber} {option.descriptionSlug}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="confirm-actions">
+          <button className="mini-btn" onClick={() => setParentEdit(null)} type="button">
+            Cancel
+          </button>
+          <button
+            className="mini-btn"
+            onClick={() => {
+              onSetElementParent(parentEdit.elementId, parentEdit.selectedParentId || undefined);
+              setParentEdit(null);
+            }}
+            type="button"
+          >
+            Save
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
   return (
     <>
       <div className="table-wrap">
@@ -607,6 +701,20 @@ export const ElementListView = ({
                         All versions
                       </button>
                     )}
+                    {row.conceptIndex === 0 && (
+                      <button
+                        className="mini-btn"
+                        onClick={() =>
+                          setParentEdit({
+                            elementId: row.element.id,
+                            selectedParentId: row.element.parentElementId ?? ""
+                          })
+                        }
+                        type="button"
+                      >
+                        Change parent
+                      </button>
+                    )}
                     <button
                       className="mini-btn danger-mini"
                       onClick={() => {
@@ -630,6 +738,7 @@ export const ElementListView = ({
       </div>
       {historyModal ? createPortal(historyModal, document.body) : null}
       {confirmModal ? createPortal(confirmModal, document.body) : null}
+      {parentModal ? createPortal(parentModal, document.body) : null}
     </>
   );
 };

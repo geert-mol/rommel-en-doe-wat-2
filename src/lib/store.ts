@@ -29,6 +29,11 @@ interface DeleteVersionPayload {
   versionId: string;
 }
 
+interface SetElementParentPayload {
+  elementId: string;
+  parentElementId?: string;
+}
+
 type Action =
   | { type: "LOAD"; payload: AppState }
   | { type: "SET_DEFAULT_ROOT"; payload: string }
@@ -53,7 +58,8 @@ type Action =
       type: "SET_RELEASE_STATE";
       payload: { elementId: string; conceptId: string; versionId: string; releaseState: ReleaseState };
     }
-  | { type: "DELETE_VERSION"; payload: DeleteVersionPayload };
+  | { type: "DELETE_VERSION"; payload: DeleteVersionPayload }
+  | { type: "SET_ELEMENT_PARENT"; payload: SetElementParentPayload };
 
 const createDefaultConcept = () => ({
   id: crypto.randomUUID(),
@@ -118,6 +124,34 @@ export const deleteVersionAndCleanup = (
   }
 
   return updated.filter((element) => !removedIds.has(element.id));
+};
+
+export const setElementParent = (
+  elements: EngineeringElement[],
+  payload: SetElementParentPayload
+): EngineeringElement[] => {
+  const { elementId, parentElementId } = payload;
+  const target = elements.find((element) => element.id === elementId);
+  if (!target) return elements;
+  if (parentElementId === elementId) return elements;
+
+  if (parentElementId) {
+    const parent = elements.find((element) => element.id === parentElementId);
+    if (!parent) return elements;
+    if (!(parent.type === "HA" || parent.type === "SA" || parent.type === "MM")) return elements;
+    if (parent.productId !== target.productId || parent.projectId !== target.projectId) return elements;
+  }
+
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  let cursor = parentElementId;
+  while (cursor) {
+    if (cursor === elementId) return elements;
+    cursor = byId.get(cursor)?.parentElementId;
+  }
+
+  return elements.map((element) =>
+    element.id === elementId ? { ...element, parentElementId } : element
+  );
 };
 
 const reducer = (state: AppState, action: Action): AppState => {
@@ -249,6 +283,11 @@ const reducer = (state: AppState, action: Action): AppState => {
       return {
         ...state,
         elements: deleteVersionAndCleanup(state.elements, action.payload)
+      };
+    case "SET_ELEMENT_PARENT":
+      return {
+        ...state,
+        elements: setElementParent(state.elements, action.payload)
       };
     default:
       return state;
