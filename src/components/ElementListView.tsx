@@ -57,6 +57,19 @@ interface ParentEditState {
   selectedParentId: string;
 }
 
+interface MenuItem {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+interface OpenMenuState {
+  id: string;
+  left: number;
+  top: number;
+  items: MenuItem[];
+}
+
 type GraphSegment =
   | {
       kind: "line";
@@ -86,6 +99,32 @@ const xForLane = (lane: number): number => GRAPH_PAD + lane * LANE_STEP + 6;
 const copyToClipboard = async (value: string): Promise<void> => {
   await navigator.clipboard.writeText(value);
 };
+
+const KebabMenu = ({
+  menuId,
+  items,
+  onOpen
+}: {
+  menuId: string;
+  items: MenuItem[];
+  onOpen: (menuId: string, items: MenuItem[], trigger: HTMLElement) => void;
+}) => (
+  <button
+    className="kebab-trigger"
+    aria-label="More actions"
+    onClick={(event) => {
+      event.stopPropagation();
+      onOpen(menuId, items, event.currentTarget);
+    }}
+    type="button"
+  >
+    <span className="kebab-dots" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  </button>
+);
 
 const sortElements = (a: EngineeringElement, b: EngineeringElement): number => {
   if (a.partNumber !== b.partNumber) {
@@ -292,6 +331,7 @@ export const ElementListView = ({
   const [historyElementId, setHistoryElementId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
+  const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
 
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
@@ -432,6 +472,20 @@ export const ElementListView = ({
     message: string
   ) => {
     setPendingDelete({ elementId, conceptId, versionId, message });
+    setOpenMenu(null);
+  };
+
+  const openKebabMenu = (menuId: string, items: MenuItem[], trigger: HTMLElement) => {
+    const rect = trigger.getBoundingClientRect();
+    const panelWidth = 156;
+    const left = Math.max(8, Math.min(rect.right - panelWidth, window.innerWidth - panelWidth - 8));
+    const top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 8));
+    setOpenMenu({
+      id: menuId,
+      left,
+      top,
+      items
+    });
   };
 
   const historyModal = historyElement ? (
@@ -474,35 +528,33 @@ export const ElementListView = ({
                   <td>{new Date(historyRow.createdAt).toLocaleDateString()}</td>
                   <td>
                     <div className="dense-actions">
-                      <button
-                        className="mini-btn"
-                        onClick={() => void copyToClipboard(historyRow.fileName)}
-                        type="button"
-                      >
-                        Copy name
-                      </button>
-                      <button
-                        className="mini-btn"
-                        onClick={() => void copyToClipboard(historyRow.realPath)}
-                        type="button"
-                      >
-                        Copy path
-                      </button>
-                      <button
-                        className="mini-btn danger-mini"
-                        onClick={() => {
-                          if (!historyElement) return;
-                          requestDelete(
-                            historyElement.id,
-                            historyRow.conceptId,
-                            historyRow.versionId,
-                            "Delete this version?"
-                          );
-                        }}
-                        type="button"
-                      >
-                        Delete
-                      </button>
+                      <KebabMenu
+                        menuId={`history-${historyRow.conceptId}-${historyRow.versionId}`}
+                        items={[
+                          {
+                            label: "Copy name",
+                            onClick: () => void copyToClipboard(historyRow.fileName)
+                          },
+                          {
+                            label: "Copy path",
+                            onClick: () => void copyToClipboard(historyRow.realPath)
+                          },
+                          {
+                            label: "Delete",
+                            danger: true,
+                            onClick: () => {
+                              if (!historyElement) return;
+                              requestDelete(
+                                historyElement.id,
+                                historyRow.conceptId,
+                                historyRow.versionId,
+                                "Delete this version?"
+                              );
+                            }
+                          }
+                        ]}
+                        onOpen={openKebabMenu}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -659,20 +711,6 @@ export const ElementListView = ({
                   <div className="dense-actions">
                     <button
                       className="mini-btn"
-                      onClick={() => void copyToClipboard(row.fileName)}
-                      type="button"
-                    >
-                      Copy name
-                    </button>
-                    <button
-                      className="mini-btn"
-                      onClick={() => void copyToClipboard(row.realPath)}
-                      type="button"
-                    >
-                      Copy path
-                    </button>
-                    <button
-                      className="mini-btn"
                       onClick={() => onAddConcept(row.element.id)}
                       type="button"
                     >
@@ -692,43 +730,48 @@ export const ElementListView = ({
                     >
                       +Minor
                     </button>
-                    {row.conceptIndex === 0 && (
-                      <button
-                        className="mini-btn"
-                        onClick={() => setHistoryElementId(row.element.id)}
-                        type="button"
-                      >
-                        All versions
-                      </button>
-                    )}
-                    {row.conceptIndex === 0 && (
-                      <button
-                        className="mini-btn"
-                        onClick={() =>
-                          setParentEdit({
-                            elementId: row.element.id,
-                            selectedParentId: row.element.parentElementId ?? ""
-                          })
+                    <KebabMenu
+                      menuId={`grid-${row.element.id}-${row.concept.id}-${row.version.id}`}
+                      items={[
+                        {
+                          label: "Copy name",
+                          onClick: () => void copyToClipboard(row.fileName)
+                        },
+                        {
+                          label: "Copy path",
+                          onClick: () => void copyToClipboard(row.realPath)
+                        },
+                        ...(row.conceptIndex === 0
+                          ? [
+                              {
+                                label: "All versions",
+                                onClick: () => setHistoryElementId(row.element.id)
+                              },
+                              {
+                                label: "Change parent",
+                                onClick: () =>
+                                  setParentEdit({
+                                    elementId: row.element.id,
+                                    selectedParentId: row.element.parentElementId ?? ""
+                                  })
+                              }
+                            ]
+                          : []),
+                        {
+                          label: "Delete",
+                          danger: true,
+                          onClick: () => {
+                            requestDelete(
+                              row.element.id,
+                              row.concept.id,
+                              row.version.id,
+                              "Delete latest visible version for this row?"
+                            );
+                          }
                         }
-                        type="button"
-                      >
-                        Change parent
-                      </button>
-                    )}
-                    <button
-                      className="mini-btn danger-mini"
-                      onClick={() => {
-                        requestDelete(
-                          row.element.id,
-                          row.concept.id,
-                          row.version.id,
-                          "Delete latest visible version for this row?"
-                        );
-                      }}
-                      type="button"
-                    >
-                      Delete
-                    </button>
+                      ]}
+                      onOpen={openKebabMenu}
+                    />
                   </div>
                 </td>
               </tr>
@@ -736,6 +779,32 @@ export const ElementListView = ({
           </tbody>
         </table>
       </div>
+      {openMenu
+        ? createPortal(
+            <div className="kebab-root" onClick={() => setOpenMenu(null)} role="presentation">
+              <div
+                className="kebab-panel kebab-panel-floating"
+                style={{ left: openMenu.left, top: openMenu.top }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {openMenu.items.map((item) => (
+                  <button
+                    key={`${openMenu.id}-${item.label}`}
+                    className={`kebab-item ${item.danger ? "danger-mini" : ""}`.trim()}
+                    onClick={() => {
+                      item.onClick();
+                      setOpenMenu(null);
+                    }}
+                    type="button"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
       {historyModal ? createPortal(historyModal, document.body) : null}
       {confirmModal ? createPortal(confirmModal, document.body) : null}
       {parentModal ? createPortal(parentModal, document.body) : null}
