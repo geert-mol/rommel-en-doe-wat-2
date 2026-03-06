@@ -125,6 +125,11 @@ button:hover {
   transform: translateY(-1px);
 }
 
+.compact-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .compact-form button,
 .element-form button[type="submit"] {
   background: var(--ink);
