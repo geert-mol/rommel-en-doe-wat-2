@@ -21,6 +21,7 @@ interface ElementListViewProps {
   defaultRootPath: string;
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
+  onDeleteVersion: (elementId: string, conceptId: string, versionId: string) => void;
   onSetReleaseState: (
     elementId: string,
     conceptId: string,
@@ -41,6 +42,13 @@ interface RowModel {
   conceptIndex: number;
   conceptCount: number;
   parentRowIndex: number | null;
+}
+
+interface PendingDelete {
+  elementId: string;
+  conceptId: string;
+  versionId: string;
+  message: string;
 }
 
 type GraphSegment =
@@ -251,9 +259,11 @@ export const ElementListView = ({
   defaultRootPath,
   onAddConcept,
   onAddVersion,
+  onDeleteVersion,
   onSetReleaseState
 }: ElementListViewProps) => {
   const [historyElementId, setHistoryElementId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
@@ -347,6 +357,8 @@ export const ElementListView = ({
           });
 
           return {
+            conceptId: concept.id,
+            versionId: version.id,
             conceptCode: concept.conceptCode,
             versionLabel: formatVersionLabel(version.majorVersion, version.minorVersion),
             releaseState: version.releaseState,
@@ -367,6 +379,15 @@ export const ElementListView = ({
   if (rows.length === 0) {
     return <p className="empty">No rows yet. List appears when elements are added.</p>;
   }
+
+  const requestDelete = (
+    elementId: string,
+    conceptId: string,
+    versionId: string,
+    message: string
+  ) => {
+    setPendingDelete({ elementId, conceptId, versionId, message });
+  };
 
   const historyModal = historyElement ? (
     <div className="history-backdrop" onClick={() => setHistoryElementId(null)} role="presentation">
@@ -422,12 +443,60 @@ export const ElementListView = ({
                       >
                         Copy path
                       </button>
+                      <button
+                        className="mini-btn danger-mini"
+                        onClick={() => {
+                          if (!historyElement) return;
+                          requestDelete(
+                            historyElement.id,
+                            historyRow.conceptId,
+                            historyRow.versionId,
+                            "Delete this version?"
+                          );
+                        }}
+                        type="button"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
+  const confirmModal = pendingDelete ? (
+    <div className="confirm-backdrop" onClick={() => setPendingDelete(null)} role="presentation">
+      <section
+        className="confirm-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <p className="confirm-title">Confirm Delete</p>
+        <p className="confirm-message">{pendingDelete.message}</p>
+        <div className="confirm-actions">
+          <button className="mini-btn" onClick={() => setPendingDelete(null)} type="button">
+            Cancel
+          </button>
+          <button
+            className="mini-btn danger-mini"
+            onClick={() => {
+              onDeleteVersion(
+                pendingDelete.elementId,
+                pendingDelete.conceptId,
+                pendingDelete.versionId
+              );
+              setPendingDelete(null);
+            }}
+            type="button"
+          >
+            Delete
+          </button>
         </div>
       </section>
     </div>
@@ -538,6 +607,20 @@ export const ElementListView = ({
                         All versions
                       </button>
                     )}
+                    <button
+                      className="mini-btn danger-mini"
+                      onClick={() => {
+                        requestDelete(
+                          row.element.id,
+                          row.concept.id,
+                          row.version.id,
+                          "Delete latest visible version for this row?"
+                        );
+                      }}
+                      type="button"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -546,6 +629,7 @@ export const ElementListView = ({
         </table>
       </div>
       {historyModal ? createPortal(historyModal, document.body) : null}
+      {confirmModal ? createPortal(confirmModal, document.body) : null}
     </>
   );
 };

@@ -317,6 +317,9 @@ function App() {
                 onAddVersion={(elementId, conceptId, kind) =>
                   dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
                 }
+                onDeleteVersion={(elementId, conceptId, versionId) =>
+                  dispatch({ type: "DELETE_VERSION", payload: { elementId, conceptId, versionId } })
+                }
                 onSetReleaseState={setReleaseState}
               />
             </section>

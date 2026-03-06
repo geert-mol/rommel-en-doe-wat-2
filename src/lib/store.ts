@@ -23,6 +23,12 @@ const initialState: AppState = {
   elements: []
 };
 
+interface DeleteVersionPayload {
+  elementId: string;
+  conceptId: string;
+  versionId: string;
+}
+
 type Action =
   | { type: "LOAD"; payload: AppState }
   | { type: "SET_DEFAULT_ROOT"; payload: string }
@@ -46,7 +52,8 @@ type Action =
   | {
       type: "SET_RELEASE_STATE";
       payload: { elementId: string; conceptId: string; versionId: string; releaseState: ReleaseState };
-    };
+    }
+  | { type: "DELETE_VERSION"; payload: DeleteVersionPayload };
 
 const createDefaultConcept = () => ({
   id: crypto.randomUUID(),
@@ -64,6 +71,54 @@ const createDefaultConcept = () => ({
 
 const sortById = <T extends { name: string }>(values: T[]): T[] =>
   [...values].sort((a, b) => a.name.localeCompare(b.name));
+
+export const deleteVersionAndCleanup = (
+  elements: EngineeringElement[],
+  payload: DeleteVersionPayload
+): EngineeringElement[] => {
+  let didDelete = false;
+
+  const updated = elements.flatMap((element) => {
+    if (element.id !== payload.elementId) return [element];
+
+    const concepts = element.concepts.flatMap((concept) => {
+      if (concept.id !== payload.conceptId) return [concept];
+
+      const versions = concept.versions.filter((version) => version.id !== payload.versionId);
+      if (versions.length === concept.versions.length) return [concept];
+
+      didDelete = true;
+      if (versions.length === 0) return [];
+      return [{ ...concept, versions }];
+    });
+
+    if (concepts.length === 0) return [];
+    return [{ ...element, concepts }];
+  });
+
+  if (!didDelete) return elements;
+
+  const remainingIds = new Set(updated.map((element) => element.id));
+  const removedIds = new Set(
+    elements.filter((element) => !remainingIds.has(element.id)).map((element) => element.id)
+  );
+
+  if (removedIds.size === 0) return updated;
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const element of updated) {
+      if (!element.parentElementId) continue;
+      if (removedIds.has(element.parentElementId) && !removedIds.has(element.id)) {
+        removedIds.add(element.id);
+        changed = true;
+      }
+    }
+  }
+
+  return updated.filter((element) => !removedIds.has(element.id));
+};
 
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
@@ -189,6 +244,11 @@ const reducer = (state: AppState, action: Action): AppState => {
             })
           };
         })
+      };
+    case "DELETE_VERSION":
+      return {
+        ...state,
+        elements: deleteVersionAndCleanup(state.elements, action.payload)
       };
     default:
       return state;

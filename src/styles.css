@@ -408,6 +408,12 @@ button:hover {
   padding: 0.2rem 0.3rem;
 }
 
+.danger-mini {
+  background: #fce7df;
+  border-color: #df7d63;
+  color: #7d2510;
+}
+
 .history-backdrop {
   position: fixed;
   inset: 0;
@@ -467,6 +473,44 @@ button:hover {
   top: 0;
   z-index: 1;
   background: #f1ebd9;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 25, 32, 0.42);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+
+.confirm-modal {
+  width: min(420px, 92vw);
+  background: #fffdf8;
+  border: 1px solid #d8ceb7;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(16, 25, 32, 0.26);
+  padding: 0.9rem;
+}
+
+.confirm-title {
+  margin: 0;
+  font-family: "Oswald", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.confirm-message {
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+  color: #2f3942;
+}
+
+.confirm-actions {
+  margin-top: 0.85rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 @media (max-width: 1000px) {
