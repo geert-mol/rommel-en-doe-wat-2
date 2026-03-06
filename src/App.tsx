@@ -11,6 +11,10 @@ import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types"
 
 const parentCapable = new Set<ElementType>(["HA", "SA", "MM"]);
 
+type DeleteTarget =
+  | { kind: "project"; id: string; label: string }
+  | { kind: "product"; id: string; label: string };
+
 const nextPartNumberForProduct = (partNumbers: string[]): string => {
   const maxValue = partNumbers.reduce((max, partNumber) => {
     const parsed = Number.parseInt(partNumber, 10);
@@ -20,6 +24,19 @@ const nextPartNumberForProduct = (partNumbers: string[]): string => {
 
   return String(maxValue + 1).padStart(2, "0");
 };
+
+const TrashIcon = () => (
+  <svg className="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-1 6h2v8H8V9Zm6 0h2v8h-2V9ZM7 7h10l-1 13H8L7 7Z"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+    />
+  </svg>
+);
 
 function App() {
   const {
@@ -32,6 +49,8 @@ function App() {
     dispatch,
     addProject,
     addProduct,
+    deleteProject,
+    deleteProduct,
     replaceState
   } = useAppStore();
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
@@ -39,6 +58,7 @@ function App() {
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
   const [parentDropdownRect, setParentDropdownRect] = useState<{
     top: number;
@@ -80,6 +100,19 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPendingDelete(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pendingDelete]);
 
   useEffect(() => {
     if (!isParentDropdownOpen) return;
@@ -259,6 +292,18 @@ function App() {
     }));
   };
 
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+
+    if (pendingDelete.kind === "project") {
+      deleteProject(pendingDelete.id);
+    } else {
+      deleteProduct(pendingDelete.id);
+    }
+
+    setPendingDelete(null);
+  };
+
   const parentDropdown = isParentDropdownOpen && parentDropdownRect
     ? createPortal(
         <div
@@ -289,6 +334,36 @@ function App() {
         document.body
       )
     : null;
+
+  const deleteModal = pendingDelete ? (
+    <div className="confirm-backdrop" onClick={() => setPendingDelete(null)} role="presentation">
+      <section
+        className="confirm-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-title"
+      >
+        <h3 className="confirm-title" id="delete-title">
+          Delete {pendingDelete.kind}
+        </h3>
+        <p className="confirm-message">
+          {pendingDelete.kind === "project"
+            ? `Delete ${pendingDelete.label}? This removes the project, every product inside it, and all elements within those products.`
+            : `Delete ${pendingDelete.label}? This removes the product and all elements within it.`}
+        </p>
+        <p className="confirm-message confirm-warning">This cannot be undone.</p>
+        <div className="confirm-actions">
+          <button className="ghost-btn" onClick={() => setPendingDelete(null)} type="button">
+            Cancel
+          </button>
+          <button className="danger-mini" onClick={confirmDelete} type="button">
+            Delete {pendingDelete.kind}
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
 
   const settingsModal = isSettingsOpen ? (
     <div className="settings-backdrop" onClick={() => setIsSettingsOpen(false)} role="presentation">
@@ -445,14 +520,30 @@ function App() {
 
           <ul className="list">
             {state.projects.map((project) => (
-              <li key={project.id}>
+              <li key={project.id} className="list-item">
+                <div className="sidebar-item">
                 <button
-                  className={project.id === selectedProject?.id ? "active" : ""}
+                  className={`sidebar-select ${project.id === selectedProject?.id ? "active" : ""}`.trim()}
                   onClick={() => dispatch({ type: "SELECT_PROJECT", payload: project.id })}
                   type="button"
                 >
                   {project.projectId} {project.name}
                 </button>
+                <button
+                  aria-label={`Delete project ${project.projectId} ${project.name}`}
+                  className="sidebar-delete"
+                  onClick={() =>
+                    setPendingDelete({
+                      kind: "project",
+                      id: project.id,
+                      label: `project ${project.projectId} ${project.name}`
+                    })
+                  }
+                  type="button"
+                >
+                  <TrashIcon />
+                </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -511,14 +602,30 @@ function App() {
 
           <ul className="list">
             {productsForSelectedProject.map((product) => (
-              <li key={product.id}>
+              <li key={product.id} className="list-item">
+                <div className="sidebar-item">
                 <button
-                  className={product.id === selectedProduct?.id ? "active" : ""}
+                  className={`sidebar-select ${product.id === selectedProduct?.id ? "active" : ""}`.trim()}
                   onClick={() => dispatch({ type: "SELECT_PRODUCT", payload: product.id })}
                   type="button"
                 >
                   {product.productId} {product.name}
                 </button>
+                <button
+                  aria-label={`Delete product ${product.productId} ${product.name}`}
+                  className="sidebar-delete"
+                  onClick={() =>
+                    setPendingDelete({
+                      kind: "product",
+                      id: product.id,
+                      label: `product ${product.productId} ${product.name}`
+                    })
+                  }
+                  type="button"
+                >
+                  <TrashIcon />
+                </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -664,6 +771,7 @@ function App() {
         </main>
       </div>
       {settingsModal}
+      {deleteModal}
       {parentDropdown}
     </>
   );

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deleteVersionAndCleanup } from "../src/lib/store";
-import type { EngineeringElement } from "../src/lib/types";
+import {
+  deleteProductAndCleanup,
+  deleteProjectAndCleanup,
+  deleteVersionAndCleanup
+} from "../src/lib/store";
+import type { AppState, EngineeringElement } from "../src/lib/types";
 
 const baseElement = (id: string): EngineeringElement => ({
   id,
@@ -174,5 +178,77 @@ describe("deleteVersionAndCleanup", () => {
     expect(result.find((element) => element.id === "grandchild")?.parentElementIds).toEqual([
       "child"
     ]);
+  });
+});
+
+describe("deleteProductAndCleanup", () => {
+  it("deletes the product, its elements, and clears the product selection", () => {
+    const state: AppState = {
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
+      products: [
+        { id: "product-1", projectId: "project-1", productId: "001", name: "Desk" },
+        { id: "product-2", projectId: "project-1", productId: "002", name: "Lamp" }
+      ],
+      elements: [
+        {
+          ...baseElement("desk"),
+          projectId: "project-1",
+          productId: "product-1"
+        },
+        {
+          ...baseElement("lamp"),
+          projectId: "project-1",
+          productId: "product-2"
+        }
+      ],
+      selectedProjectId: "project-1",
+      selectedProductId: "product-1"
+    };
+
+    const result = deleteProductAndCleanup(state, { productId: "product-1" });
+
+    expect(result.products.map((product) => product.id)).toEqual(["product-2"]);
+    expect(result.elements.map((element) => element.id)).toEqual(["lamp"]);
+    expect(result.selectedProjectId).toBe("project-1");
+    expect(result.selectedProductId).toBeUndefined();
+  });
+});
+
+describe("deleteProjectAndCleanup", () => {
+  it("deletes the project, its products, its elements, and clears current selection", () => {
+    const state: AppState = {
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [
+        { id: "project-1", projectId: "001", name: "Alpha" },
+        { id: "project-2", projectId: "002", name: "Beta" }
+      ],
+      products: [
+        { id: "product-1", projectId: "project-1", productId: "001", name: "Desk" },
+        { id: "product-2", projectId: "project-2", productId: "001", name: "Chair" }
+      ],
+      elements: [
+        {
+          ...baseElement("desk"),
+          projectId: "project-1",
+          productId: "product-1"
+        },
+        {
+          ...baseElement("chair"),
+          projectId: "project-2",
+          productId: "product-2"
+        }
+      ],
+      selectedProjectId: "project-1",
+      selectedProductId: "product-1"
+    };
+
+    const result = deleteProjectAndCleanup(state, { projectId: "project-1" });
+
+    expect(result.projects.map((project) => project.id)).toEqual(["project-2"]);
+    expect(result.products.map((product) => product.id)).toEqual(["product-2"]);
+    expect(result.elements.map((element) => element.id)).toEqual(["chair"]);
+    expect(result.selectedProjectId).toBeUndefined();
+    expect(result.selectedProductId).toBeUndefined();
   });
 });

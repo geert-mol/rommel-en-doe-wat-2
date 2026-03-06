@@ -263,16 +263,62 @@ button:hover {
   gap: 0.45rem;
 }
 
-.list button {
+.list-item {
+  margin: 0;
+}
+
+.sidebar-item {
+  position: relative;
+}
+
+.list .sidebar-select {
   width: 100%;
   text-align: left;
   background: #f4f1e5;
   border-color: #d7d0bd;
+  padding-right: 2.8rem;
 }
 
-.list button.active {
+.list .sidebar-select.active {
   background: linear-gradient(90deg, rgba(217, 72, 31, 0.15), rgba(217, 72, 31, 0.03));
   border-color: var(--accent);
+}
+
+.sidebar-delete {
+  position: absolute;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: #dfcfb7;
+  background: #f8f1e4;
+  color: #92503a;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-item:hover .sidebar-delete,
+.sidebar-item:focus-within .sidebar-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-delete:hover,
+.sidebar-delete:focus-visible {
+  transform: translateY(-50%);
+  background: #f6dfd7;
+  border-color: #df7d63;
+  color: #7d2510;
+}
+
+.trash-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  display: block;
 }
 
 .project-export-btn {
@@ -896,6 +942,10 @@ button:hover {
   margin: 0.45rem 0 0;
   font-size: 0.9rem;
   color: #2f3942;
+}
+
+.confirm-warning {
+  color: #7d2510;
 }
 
 .confirm-actions {

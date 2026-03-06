@@ -30,13 +30,23 @@ interface SetElementParentPayload {
   parentElementIds: string[];
 }
 
+interface DeleteProjectPayload {
+  projectId: string;
+}
+
+interface DeleteProductPayload {
+  productId: string;
+}
+
 type Action =
   | { type: "LOAD"; payload: AppState }
   | { type: "SET_DEFAULT_ROOT"; payload: string }
   | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string; rootPath?: string } }
   | { type: "SELECT_PROJECT"; payload: string }
+  | { type: "DELETE_PROJECT"; payload: DeleteProjectPayload }
   | { type: "CREATE_PRODUCT"; payload: { projectId: string; productId: string; name: string } }
   | { type: "SELECT_PRODUCT"; payload: string }
+  | { type: "DELETE_PRODUCT"; payload: DeleteProductPayload }
   | {
       type: "CREATE_ELEMENT";
       payload: {
@@ -157,6 +167,48 @@ export const setElementParents = (
   );
 };
 
+export const deleteProjectAndCleanup = (
+  state: AppState,
+  payload: DeleteProjectPayload
+): AppState => {
+  const project = state.projects.find((candidate) => candidate.id === payload.projectId);
+  if (!project) return state;
+
+  const deletedProductIds = new Set(
+    state.products
+      .filter((product) => product.projectId === payload.projectId)
+      .map((product) => product.id)
+  );
+  const projectWasSelected = state.selectedProjectId === payload.projectId;
+  const productWasDeleted =
+    state.selectedProductId !== undefined && deletedProductIds.has(state.selectedProductId);
+
+  return {
+    ...state,
+    projects: state.projects.filter((candidate) => candidate.id !== payload.projectId),
+    products: state.products.filter((product) => product.projectId !== payload.projectId),
+    elements: state.elements.filter((element) => element.projectId !== payload.projectId),
+    selectedProjectId: projectWasSelected ? undefined : state.selectedProjectId,
+    selectedProductId: projectWasSelected || productWasDeleted ? undefined : state.selectedProductId
+  };
+};
+
+export const deleteProductAndCleanup = (
+  state: AppState,
+  payload: DeleteProductPayload
+): AppState => {
+  const product = state.products.find((candidate) => candidate.id === payload.productId);
+  if (!product) return state;
+
+  return {
+    ...state,
+    products: state.products.filter((candidate) => candidate.id !== payload.productId),
+    elements: state.elements.filter((element) => element.productId !== payload.productId),
+    selectedProductId:
+      state.selectedProductId === payload.productId ? undefined : state.selectedProductId
+  };
+};
+
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case "LOAD":
@@ -182,6 +234,8 @@ const reducer = (state: AppState, action: Action): AppState => {
         selectedProjectId: action.payload,
         selectedProductId: undefined
       };
+    case "DELETE_PROJECT":
+      return deleteProjectAndCleanup(state, action.payload);
     case "CREATE_PRODUCT": {
       const product: Product = {
         id: crypto.randomUUID(),
@@ -197,6 +251,8 @@ const reducer = (state: AppState, action: Action): AppState => {
     }
     case "SELECT_PRODUCT":
       return { ...state, selectedProductId: action.payload };
+    case "DELETE_PRODUCT":
+      return deleteProductAndCleanup(state, action.payload);
     case "CREATE_ELEMENT": {
       const elementId = crypto.randomUUID();
       const parentElementIds =
@@ -381,6 +437,12 @@ export const useAppStore = () => {
   const addProduct = (projectId: string, productId: string, name: string) =>
     dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name } });
 
+  const deleteProject = (projectId: string) =>
+    dispatch({ type: "DELETE_PROJECT", payload: { projectId } });
+
+  const deleteProduct = (productId: string) =>
+    dispatch({ type: "DELETE_PRODUCT", payload: { productId } });
+
   const replaceState = (nextState: AppState) => {
     skipNextPersist.current = true;
     dispatch({ type: "LOAD", payload: nextState });
@@ -398,6 +460,8 @@ export const useAppStore = () => {
     dispatch,
     addProject,
     addProduct,
+    deleteProject,
+    deleteProduct,
     replaceState
   };
 };
