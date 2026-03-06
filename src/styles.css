@@ -644,9 +644,6 @@ button:hover {
 
 .branch-cell {
   padding: 0 !important;
-  width: 118px;
-  min-width: 118px;
-  max-width: 118px;
   border-top: 0 !important;
   border-bottom: 0 !important;
   border-left: 0 !important;
@@ -655,9 +652,6 @@ button:hover {
 }
 
 .branch-head {
-  width: 118px;
-  min-width: 118px;
-  max-width: 118px;
   border-left: 0 !important;
   border-right: 1px solid #d8ceb7 !important;
 }
@@ -665,10 +659,6 @@ button:hover {
 .branch-graph,
 .branch-svg {
   display: block;
-}
-
-.branch-graph {
-  display: flex;
 }
 
 .branch-svg {

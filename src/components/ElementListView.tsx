@@ -283,10 +283,7 @@ const BranchGraphCell = ({
     firstDuplicateRow !== lastDuplicateRow;
 
   return (
-    <div
-      className="branch-graph"
-      style={{ minWidth: width, width: "100%", height: ROW_HEIGHT, justifyContent: "flex-end" }}
-    >
+    <div className="branch-graph" style={{ width, height: ROW_HEIGHT }}>
       <svg className="branch-svg" width={width} height={ROW_HEIGHT} viewBox={`0 0 ${width} ${ROW_HEIGHT}`}>
         {segments.map((segment, index) =>
           segment.kind === "line" ? (
@@ -532,6 +529,12 @@ export const ElementListView = ({
     () => (hoveredElementId ? usageRowIndicesByElementId.get(hoveredElementId) ?? [] : []),
     [hoveredElementId, usageRowIndicesByElementId]
   );
+  const treeColumnWidth = (maxDepth + 1) * LANE_STEP + GRAPH_PAD * 2 + DUPLICATE_TRACE_GUTTER;
+  const treeColumnStyle = {
+    width: treeColumnWidth,
+    minWidth: treeColumnWidth,
+    maxWidth: treeColumnWidth
+  };
 
   if (rows.length === 0) {
     return <p className="empty">No rows yet. List appears when elements are added.</p>;
@@ -827,7 +830,9 @@ export const ElementListView = ({
         <table className="data-table">
           <thead>
             <tr>
-              <th className="branch-head">Tree</th>
+              <th className="branch-head" style={treeColumnStyle}>
+                Tree
+              </th>
               <th>Parent</th>
               <th>Type</th>
               <th>Part</th>
@@ -849,7 +854,7 @@ export const ElementListView = ({
                   setHoveredElementId((current) => (current === row.element.id ? null : current))
                 }
               >
-                <td className="branch-cell">
+                <td className="branch-cell" style={treeColumnStyle}>
                   <BranchGraphCell
                     row={row}
                     maxDepth={maxDepth}
