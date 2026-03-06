@@ -911,8 +911,14 @@ button:hover {
   background: #f1ebd9;
 }
 
+.history-export-head,
 .history-export-cell {
-  min-width: 7.2rem;
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+}
+
+.history-export-cell {
   padding: 0.18rem 0.32rem !important;
 }
 

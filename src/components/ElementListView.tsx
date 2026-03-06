@@ -699,7 +699,9 @@ export const ElementListView = ({
                 <th>State</th>
                 <th>Filename</th>
                 {HISTORY_EXPORT_FIELDS.map((field) => (
-                  <th key={field.kind}>{field.label}</th>
+                  <th key={field.kind} className="history-export-head">
+                    {field.label}
+                  </th>
                 ))}
                 <th>Created</th>
                 <th>Actions</th>
@@ -740,7 +742,10 @@ export const ElementListView = ({
                     );
 
                     return (
-                      <td key={field.kind} className={`history-export-cell ${isEnabled ? "is-enabled" : ""}`}>
+                      <td
+                        key={field.kind}
+                        className={`history-export-cell ${isEnabled ? "is-enabled" : ""}`}
+                      >
                         <div className="history-export-control">
                           {isEnabled ? (
                             <button
