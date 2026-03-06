@@ -525,6 +525,11 @@ export const ElementListView = ({
       .sort(sortElements);
   }, [elements, parentEditElement]);
 
+  const activeDuplicateRowIndices = useMemo(
+    () => (hoveredElementId ? usageRowIndicesByElementId.get(hoveredElementId) ?? [] : []),
+    [hoveredElementId, usageRowIndicesByElementId]
+  );
+
   if (rows.length === 0) {
     return <p className="empty">No rows yet. List appears when elements are added.</p>;
   }
@@ -846,11 +851,8 @@ export const ElementListView = ({
                     row={row}
                     maxDepth={maxDepth}
                     segments={segmentsByRow[row.rowIndex] ?? []}
-                    duplicateRowIndices={usageRowIndicesByElementId.get(row.element.id) ?? []}
-                    showDuplicateTrace={
-                      hoveredElementId === row.element.id &&
-                      (usageRowIndicesByElementId.get(row.element.id)?.length ?? 0) > 1
-                    }
+                    duplicateRowIndices={activeDuplicateRowIndices}
+                    showDuplicateTrace={activeDuplicateRowIndices.length > 1}
                   />
                 </td>
                 <td>{row.parentLabel}</td>
