@@ -13,6 +13,7 @@ $AppRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-2"
 $MarketingRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing"
 $DefaultTargetPath = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe"
 $TrackedInstallerPath = "downloads/Rommel-en-doe-wat-Setup.exe"
+$RemoteName = "origin"
 
 function Invoke-External {
   param(
@@ -135,7 +136,20 @@ try {
     throw "git rev-parse HEAD failed with exit code $LASTEXITCODE"
   }
 
-  Write-Host ("Created marketing commit {0} ({1})" -f $commitHash, $commitMessage)
+  $branchName = (& git branch --show-current).Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw "git branch --show-current failed with exit code $LASTEXITCODE"
+  }
+  if ([string]::IsNullOrWhiteSpace($branchName)) {
+    throw "Could not determine current marketing branch for push."
+  }
+
+  & git push $RemoteName $branchName
+  if ($LASTEXITCODE -ne 0) {
+    throw "git push failed with exit code $LASTEXITCODE"
+  }
+
+  Write-Host ("Created and pushed marketing commit {0} ({1}) to {2}/{3}" -f $commitHash, $commitMessage, $RemoteName, $branchName)
 }
 finally {
   Pop-Location

@@ -1,6 +1,6 @@
 ---
 name: release-rommel-en-doe-wat-release
-description: Build and publish the Windows installer for Rommel en doe wat. Use when asked to release the desktop app, rebuild the Windows package, copy the installer into C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe, and commit the marketing repo after updating that download artifact.
+description: Build and publish the Windows installer for Rommel en doe wat. Use when asked to release the desktop app, rebuild the Windows package, copy the installer into C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe, and commit plus push the marketing repo after updating that download artifact.
 ---
 
 # Release Rommel En Doe Wat
@@ -19,7 +19,7 @@ Workflow:
 4. Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Geert\.codex\skills\release-rommel-en-doe-wat\scripts\release-rommel-en-doe-wat.ps1
+powershell -ExecutionPolicy Bypass -File C:\Users\Geert\Projects\rommel-en-doe-wat-2\.agents\skills\release-rommel-en-doe-wat-release\scripts\release-rommel-en-doe-wat.ps1
 ```
 
 5. Use flags only for debugging:
@@ -27,5 +27,5 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Geert\.codex\skills\release-ro
    - `-SkipChecks`: skip `npm run check`
    - `-SkipBuild`: skip `npm run dist:win`
    - `-TargetPath <path>`: copy somewhere else; combine with `-NoCommit`
-6. Verify the copied installer exists and report the marketing commit hash/message when a commit is created.
-7. Do not push unless asked.
+6. Verify the copied installer exists and report the marketing commit hash/message and push target when a commit is created.
+7. Push the marketing repo immediately after the installer commit. Do not leave release commits unpushed.
