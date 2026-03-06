@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
 import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
 import { exportProjectExcel } from "./lib/desktop-export";
@@ -37,6 +37,7 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -57,6 +58,19 @@ function App() {
     value: string;
   }>({ value: "" });
   const desktopApp = isDesktopApp();
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSettingsOpen]);
 
   const productsForSelectedProject = useMemo(
     () => state.products.filter((product) => product.projectId === selectedProject?.id),
@@ -156,36 +170,64 @@ function App() {
     }
   };
 
-  return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <h1>Rommel en doe wat</h1>
-          <p>Prototype PDM cockpit</p>
+  const settingsModal = isSettingsOpen ? (
+    <div className="settings-backdrop" onClick={() => setIsSettingsOpen(false)} role="presentation">
+      <section
+        className="settings-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
+        <div className="settings-header">
+          <div>
+            <p className="settings-kicker">Workspace controls</p>
+            <h2 id="settings-title">Settings</h2>
+          </div>
+          <button
+            aria-label="Close settings"
+            className="settings-close"
+            onClick={() => setIsSettingsOpen(false)}
+            type="button"
+          >
+            Close
+          </button>
         </div>
-
-        <section className="panel">
-          <h2>Settings</h2>
-          <label>
-            Default root folder
-            <div className="field-action">
-              <input
-                value={state.settings.defaultRootPath}
-                onChange={(event) =>
-                  dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
-                }
-                placeholder="C:/Engineering"
-              />
-              {desktopApp && (
-                <button className="ghost-btn" onClick={() => void browseForDefaultRoot()} type="button">
-                  Browse
-                </button>
-              )}
-            </div>
-          </label>
-          {storageError && <p className="helper-text error-text">{storageError}</p>}
-          {desktopApp && (
-            <>
+        <div className="settings-grid">
+          <section className="settings-card">
+            <h3>Storage</h3>
+            <label>
+              Default root folder
+              <div className="field-action">
+                <input
+                  value={state.settings.defaultRootPath}
+                  onChange={(event) =>
+                    dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
+                  }
+                  placeholder="C:/Engineering"
+                />
+                {desktopApp && (
+                  <button
+                    className="ghost-btn"
+                    onClick={() => void browseForDefaultRoot()}
+                    type="button"
+                  >
+                    Browse
+                  </button>
+                )}
+              </div>
+            </label>
+            <p className="helper-text">
+              Used as fallback when a project has no custom root override.
+            </p>
+            {storageError && <p className="helper-text error-text">{storageError}</p>}
+          </section>
+          <section className="settings-card">
+            <h3>Backup</h3>
+            <p className="helper-text settings-copy">
+              Save and restore app data. SolidWorks files on disk stay outside this backup.
+            </p>
+            {desktopApp && (
               <div className="backup-actions">
                 <button
                   className="secondary-btn"
@@ -204,19 +246,39 @@ function App() {
                   Restore Backup
                 </button>
               </div>
-              <p className="helper-text">
-                App data only. SolidWorks files on disk are not included.
+            )}
+            {backupFeedback && (
+              <p className="helper-text mono-hint" title={backupFeedback}>
+                {backupFeedback}
               </p>
-              {backupFeedback && (
-                <p className="helper-text mono-hint" title={backupFeedback}>
-                  {backupFeedback}
-                </p>
-              )}
-            </>
-          )}
-        </section>
+            )}
+          </section>
+        </div>
+      </section>
+    </div>
+  ) : null;
 
-        <section className="panel">
+  return (
+    <>
+      <div className="app">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-topline">
+              <div>
+                <h1>Rommel en doe wat</h1>
+                <p>Prototype PDM cockpit</p>
+              </div>
+              <button
+                className={`settings-launcher ${storageError ? "has-alert" : ""}`.trim()}
+                onClick={() => setIsSettingsOpen(true)}
+                type="button"
+              >
+                Settings
+              </button>
+            </div>
+          </div>
+
+          <section className="panel">
           <h2>Projects</h2>
           <form
             className="compact-form"
@@ -291,9 +353,9 @@ function App() {
               )}
             </>
           )}
-        </section>
+          </section>
 
-        <section className="panel">
+          <section className="panel">
           <h2>Products</h2>
           <form
             className="compact-form"
@@ -340,149 +402,151 @@ function App() {
               </li>
             ))}
           </ul>
-        </section>
-      </aside>
-
-      <main className="main">
-        {isHydrating ? (
-          <section className="hero">
-            <h2>Loading workspace</h2>
-            <p>Restoring projects, products, tree state, and settings.</p>
           </section>
-        ) : !selectedProject || !selectedProduct ? (
-          <section className="hero">
-            <h2>Select project + product</h2>
-            <p>Create both in left rail, then build engineering structure.</p>
-          </section>
-        ) : (
-          <>
-            <header className="workspace-header">
-              <div>
-                <p>{selectedProject.projectId}</p>
-                <h2>{selectedProject.name}</h2>
-              </div>
-              <div>
-                <p>{selectedProduct.productId}</p>
-                <h3>{selectedProduct.name}</h3>
-              </div>
-            </header>
+        </aside>
 
-            <section className="panel element-builder">
-              <h2>New element</h2>
-              <form
-                className="element-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!selectedProject || !selectedProduct || !elementForm.description.trim()) return;
-                  if (!canCreateChild) return;
-                  dispatch({
-                    type: "CREATE_ELEMENT",
-                    payload: {
-                      projectId: selectedProject.id,
+        <main className="main">
+          {isHydrating ? (
+            <section className="hero">
+              <h2>Loading workspace</h2>
+              <p>Restoring projects, products, tree state, and settings.</p>
+            </section>
+          ) : !selectedProject || !selectedProduct ? (
+            <section className="hero">
+              <h2>Select project + product</h2>
+              <p>Create both in left rail, then build engineering structure.</p>
+            </section>
+          ) : (
+            <>
+              <header className="workspace-header">
+                <div>
+                  <p>{selectedProject.projectId}</p>
+                  <h2>{selectedProject.name}</h2>
+                </div>
+                <div>
+                  <p>{selectedProduct.productId}</p>
+                  <h3>{selectedProduct.name}</h3>
+                </div>
+              </header>
+
+              <section className="panel element-builder">
+                <h2>New element</h2>
+                <form
+                  className="element-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!selectedProject || !selectedProduct || !elementForm.description.trim()) return;
+                    if (!canCreateChild) return;
+                    dispatch({
+                      type: "CREATE_ELEMENT",
+                      payload: {
+                        projectId: selectedProject.id,
+                        productId: selectedProduct.id,
+                        parentElementId: elementForm.parentElementId || undefined,
+                        elementType: elementForm.elementType,
+                        partNumber: currentPartNumber,
+                        description: elementForm.description
+                      }
+                    });
+                    setElementForm((prev) => ({
+                      ...prev,
+                      description: ""
+                    }));
+                    setPartNumberDraft({
                       productId: selectedProduct.id,
-                      parentElementId: elementForm.parentElementId || undefined,
-                      elementType: elementForm.elementType,
-                      partNumber: currentPartNumber,
-                      description: elementForm.description
-                    }
-                  });
-                  setElementForm((prev) => ({
-                    ...prev,
-                    description: ""
-                  }));
-                  setPartNumberDraft({
-                    productId: selectedProduct.id,
-                    value: String(Number(currentPartNumber || "0") + 1).padStart(2, "0")
-                  });
-                }}
-              >
-                <label>
-                  Parent
-                  <select
-                    value={elementForm.parentElementId}
-                    onChange={(event) =>
-                      setElementForm((prev) => ({ ...prev, parentElementId: event.target.value }))
-                    }
-                  >
-                    <option value="">(root)</option>
-                    {parentCandidates.map((parent) => (
-                      <option key={parent.id} value={parent.id}>
-                        {parent.type} {parent.partNumber} {parent.descriptionSlug}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Type
-                  <select
-                    value={elementForm.elementType}
-                    onChange={(event) =>
-                      setElementForm((prev) => ({
-                        ...prev,
-                        elementType: event.target.value as ElementType
-                      }))
-                    }
-                  >
-                    {ELEMENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Part number
-                  <input
-                    value={currentPartNumber}
-                    onChange={(event) =>
-                      setPartNumberDraft({
-                        productId: selectedProduct?.id,
-                        value: event.target.value
-                      })
-                    }
-                    placeholder="00"
-                  />
-                </label>
-                <label className="wide">
-                  Description
-                  <input
-                    value={elementForm.description}
-                    onChange={(event) =>
-                      setElementForm((prev) => ({ ...prev, description: event.target.value }))
-                    }
-                    placeholder="balkon mini vijver"
-                  />
-                </label>
-                <button type="submit">Add element</button>
-              </form>
-            </section>
+                      value: String(Number(currentPartNumber || "0") + 1).padStart(2, "0")
+                    });
+                  }}
+                >
+                  <label>
+                    Parent
+                    <select
+                      value={elementForm.parentElementId}
+                      onChange={(event) =>
+                        setElementForm((prev) => ({ ...prev, parentElementId: event.target.value }))
+                      }
+                    >
+                      <option value="">(root)</option>
+                      {parentCandidates.map((parent) => (
+                        <option key={parent.id} value={parent.id}>
+                          {parent.type} {parent.partNumber} {parent.descriptionSlug}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Type
+                    <select
+                      value={elementForm.elementType}
+                      onChange={(event) =>
+                        setElementForm((prev) => ({
+                          ...prev,
+                          elementType: event.target.value as ElementType
+                        }))
+                      }
+                    >
+                      {ELEMENT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Part number
+                    <input
+                      value={currentPartNumber}
+                      onChange={(event) =>
+                        setPartNumberDraft({
+                          productId: selectedProduct?.id,
+                          value: event.target.value
+                        })
+                      }
+                      placeholder="00"
+                    />
+                  </label>
+                  <label className="wide">
+                    Description
+                    <input
+                      value={elementForm.description}
+                      onChange={(event) =>
+                        setElementForm((prev) => ({ ...prev, description: event.target.value }))
+                      }
+                      placeholder="balkon mini vijver"
+                    />
+                  </label>
+                  <button type="submit">Add element</button>
+                </form>
+              </section>
 
-            <section className="panel">
-              <h2>Engineering list</h2>
-              <ElementListView
-                elements={selectedElements}
-                project={selectedProject}
-                product={selectedProduct}
-                defaultRootPath={state.settings.defaultRootPath}
-                onAddConcept={(elementId) =>
-                  dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
-                }
-                onAddVersion={(elementId, conceptId, kind) =>
-                  dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
-                }
-                onDeleteVersion={(elementId, conceptId, versionId) =>
-                  dispatch({ type: "DELETE_VERSION", payload: { elementId, conceptId, versionId } })
-                }
-                onSetElementParent={(elementId, parentElementId) =>
-                  dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementId } })
-                }
-                onSetReleaseState={setReleaseState}
-              />
-            </section>
-          </>
-        )}
-      </main>
-    </div>
+              <section className="panel">
+                <h2>Engineering list</h2>
+                <ElementListView
+                  elements={selectedElements}
+                  project={selectedProject}
+                  product={selectedProduct}
+                  defaultRootPath={state.settings.defaultRootPath}
+                  onAddConcept={(elementId) =>
+                    dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
+                  }
+                  onAddVersion={(elementId, conceptId, kind) =>
+                    dispatch({ type: "ADD_VERSION", payload: { elementId, conceptId, kind } })
+                  }
+                  onDeleteVersion={(elementId, conceptId, versionId) =>
+                    dispatch({ type: "DELETE_VERSION", payload: { elementId, conceptId, versionId } })
+                  }
+                  onSetElementParent={(elementId, parentElementId) =>
+                    dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementId } })
+                  }
+                  onSetReleaseState={setReleaseState}
+                />
+              </section>
+            </>
+          )}
+        </main>
+      </div>
+      {settingsModal}
+    </>
   );
 }
 
