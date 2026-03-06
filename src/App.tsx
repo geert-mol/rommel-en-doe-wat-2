@@ -156,14 +156,14 @@ function App() {
               )}
             </div>
           </label>
-          <p className="helper-text">
+          {/* <p className="helper-text">
             Storage: {storageMode === "sqlite" ? "desktop SQLite" : "browser local fallback"}
           </p>
           {storageLocation && (
             <p className="helper-text mono-hint" title={storageLocation}>
               {storageLocation}
             </p>
-          )}
+          )} */}
           {storageError && <p className="helper-text error-text">{storageError}</p>}
         </section>
 

@@ -6,6 +6,13 @@ import { writeProjectExportWorkbook } from "./exporter.cjs";
 import { getLogFilePath, logError, logInfo } from "./logger.cjs";
 
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
+const resolveWindowIconPath = (): string | undefined => {
+  const candidatePaths = app.isPackaged
+    ? [path.join(process.resourcesPath, "icon.ico")]
+    : [path.join(app.getAppPath(), "build", "icon.ico")];
+
+  return candidatePaths.find((candidatePath) => existsSync(candidatePath));
+};
 
 const createMainWindow = (): BrowserWindow => {
   const window = new BrowserWindow({
@@ -15,6 +22,7 @@ const createMainWindow = (): BrowserWindow => {
     minHeight: 760,
     backgroundColor: "#f4f2ea",
     autoHideMenuBar: true,
+    icon: resolveWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
