@@ -451,6 +451,7 @@ button:hover {
 }
 
 .data-table tbody tr:hover .filename-copy-btn,
+.history-table tbody tr:hover .filename-copy-btn,
 .filename-copy-btn.is-copied,
 .filename-copy-btn:focus-visible {
   opacity: 1;

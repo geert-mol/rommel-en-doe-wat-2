@@ -70,18 +70,6 @@ const createMainWindow = (): BrowserWindow => {
   return window;
 };
 
-const normalizeDirectoryChoice = (targetPath: string): string | null => {
-  const trimmedPath = targetPath.trim();
-  if (trimmedPath.length === 0) return null;
-
-  if (existsSync(trimmedPath)) {
-    return trimmedPath;
-  }
-
-  const parentDirectory = path.dirname(trimmedPath);
-  return existsSync(parentDirectory) ? parentDirectory : null;
-};
-
 const registerIpcHandlers = () => {
   ipcMain.handle("storage:load", () => loadState());
   ipcMain.handle("storage:save", (_event, state) => {
@@ -127,14 +115,13 @@ const registerIpcHandlers = () => {
     return result.filePath;
   });
   ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
-    const fallbackDirectory = normalizeDirectoryChoice(targetPath);
-    if (!fallbackDirectory) return `Path not found: ${targetPath}`;
+    const normalizedPath = path.normalize(targetPath.trim());
+    if (normalizedPath.length === 0 || !existsSync(normalizedPath)) {
+      logInfo("Open skipped because path does not exist.", { targetPath, normalizedPath });
+      return `Path not found: ${targetPath}`;
+    }
 
-    const resolvedPath = existsSync(targetPath)
-      ? path.normalize(targetPath)
-      : path.normalize(fallbackDirectory);
-
-    return shell.openPath(resolvedPath);
+    return shell.openPath(normalizedPath);
   });
   ipcMain.handle("shell:reveal-path", (_event, targetPath: string) => {
     const normalizedPath = path.normalize(targetPath);

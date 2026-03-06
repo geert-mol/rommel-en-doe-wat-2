@@ -58,6 +58,11 @@ interface ParentEditState {
   selectedParentId: string;
 }
 
+interface HistoryState {
+  elementId: string;
+  conceptId: string;
+}
+
 interface MenuItem {
   label: string;
   onClick: () => void;
@@ -113,6 +118,14 @@ const CheckIcon = () => (
     <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
   </svg>
 );
+
+const openPathWithFeedback = async (targetPath: string): Promise<void> => {
+  const didOpen = await openFilePath(targetPath);
+  if (didOpen) return;
+
+  await copyToClipboard(targetPath);
+  window.alert("File not found. Full path copied to clipboard.");
+};
 
 const revealPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didReveal = await revealFilePath(targetPath);
@@ -350,7 +363,7 @@ export const ElementListView = ({
   onSetElementParent,
   onSetReleaseState
 }: ElementListViewProps) => {
-  const [historyElementId, setHistoryElementId] = useState<string | null>(null);
+  const [historyState, setHistoryState] = useState<HistoryState | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
@@ -435,48 +448,49 @@ export const ElementListView = ({
   }, [defaultRootPath, elements, product, project]);
 
   const historyElement = useMemo(
-    () => elements.find((element) => element.id === historyElementId) ?? null,
-    [elements, historyElementId]
+    () => elements.find((element) => element.id === historyState?.elementId) ?? null,
+    [elements, historyState?.elementId]
+  );
+
+  const historyConcept = useMemo(
+    () => historyElement?.concepts.find((concept) => concept.id === historyState?.conceptId) ?? null,
+    [historyElement, historyState?.conceptId]
   );
 
   const historyRows = useMemo(() => {
-    if (!historyElement) return [];
+    if (!historyElement || !historyConcept) return [];
 
-    return [...historyElement.concepts]
-      .sort((a, b) => a.conceptCode.localeCompare(b.conceptCode))
-      .flatMap((concept) =>
-        [...concept.versions].sort(byVersionDesc).map((version) => {
-          const fileName = generateFileName({
-            state: version.releaseState,
-            projectCode: project.projectId,
-            productCode: product.productId,
-            conceptCode: concept.conceptCode,
-            type: historyElement.type,
-            partNumber: historyElement.partNumber,
-            descriptionSlug: historyElement.descriptionSlug,
-            majorVersion: version.majorVersion,
-            minorVersion: version.minorVersion
-          });
+    return [...historyConcept.versions].sort(byVersionDesc).map((version) => {
+      const fileName = generateFileName({
+        state: version.releaseState,
+        projectCode: project.projectId,
+        productCode: product.productId,
+        conceptCode: historyConcept.conceptCode,
+        type: historyElement.type,
+        partNumber: historyElement.partNumber,
+        descriptionSlug: historyElement.descriptionSlug,
+        majorVersion: version.majorVersion,
+        minorVersion: version.minorVersion
+      });
 
-          return {
-            conceptId: concept.id,
-            versionId: version.id,
-            conceptCode: concept.conceptCode,
-            versionLabel: formatVersionLabel(version.majorVersion, version.minorVersion),
-            releaseState: version.releaseState,
-            createdAt: version.createdAt,
-            fileName,
-            realPath: buildSuggestedFilePath(
-              fileName,
-              historyElement,
-              project,
-              product,
-              defaultRootPath
-            )
-          };
-        })
-      );
-  }, [defaultRootPath, historyElement, product, project]);
+      return {
+        conceptId: historyConcept.id,
+        versionId: version.id,
+        conceptCode: historyConcept.conceptCode,
+        versionLabel: formatVersionLabel(version.majorVersion, version.minorVersion),
+        releaseState: version.releaseState,
+        createdAt: version.createdAt,
+        fileName,
+        realPath: buildSuggestedFilePath(
+          fileName,
+          historyElement,
+          project,
+          product,
+          defaultRootPath
+        )
+      };
+    });
+  }, [defaultRootPath, historyConcept, historyElement, product, project]);
 
   const parentEditElement = useMemo(
     () => elements.find((element) => element.id === parentEdit?.elementId) ?? null,
@@ -536,8 +550,8 @@ export const ElementListView = ({
     }, 1200);
   };
 
-  const historyModal = historyElement ? (
-    <div className="history-backdrop" onClick={() => setHistoryElementId(null)} role="presentation">
+  const historyModal = historyElement && historyConcept ? (
+    <div className="history-backdrop" onClick={() => setHistoryState(null)} role="presentation">
       <section
         className="history-modal"
         onClick={(event) => event.stopPropagation()}
@@ -546,9 +560,10 @@ export const ElementListView = ({
       >
         <header className="history-header">
           <h3>
-            {historyElement.type} {historyElement.partNumber} - {historyElement.descriptionSlug}
+            {historyElement.type} {historyElement.partNumber} - {historyElement.descriptionSlug} | Concept{" "}
+            {historyConcept.conceptCode}
           </h3>
-          <button className="mini-btn" onClick={() => setHistoryElementId(null)} type="button">
+          <button className="mini-btn" onClick={() => setHistoryState(null)} type="button">
             Close
           </button>
         </header>
@@ -571,7 +586,26 @@ export const ElementListView = ({
                   <td>{historyRow.versionLabel}</td>
                   <td>{historyRow.releaseState}</td>
                   <td className="mono-cell" title={historyRow.fileName}>
-                    {historyRow.fileName}
+                    <div className="filename-cell">
+                      <span className="filename-text">{historyRow.fileName}</span>
+                      <button
+                        aria-label={`Copy filename ${historyRow.fileName}`}
+                        className={`filename-copy-btn ${copiedFilenameId === `history-${historyRow.versionId}` ? "is-copied" : ""}`}
+                        onClick={() =>
+                          void copyFilenameWithFeedback(
+                            `history-${historyRow.versionId}`,
+                            historyRow.fileName
+                          )
+                        }
+                        type="button"
+                      >
+                        {copiedFilenameId === `history-${historyRow.versionId}` ? (
+                          <CheckIcon />
+                        ) : (
+                          <CopyIcon />
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td>{new Date(historyRow.createdAt).toLocaleDateString()}</td>
                   <td>
@@ -579,15 +613,11 @@ export const ElementListView = ({
                       <KebabMenu
                         menuId={`history-${historyRow.conceptId}-${historyRow.versionId}`}
                         items={[
-                          {
-                            label: "Copy name",
-                            onClick: () => void copyToClipboard(historyRow.fileName)
-                          },
                           ...(desktopApp
                             ? [
                                 {
-                                  label: "Open path",
-                                  onClick: () => void openFilePath(historyRow.realPath)
+                                  label: "Open file",
+                                  onClick: () => void openPathWithFeedback(historyRow.realPath)
                                 },
                                 {
                                   label: "Reveal folder",
@@ -782,10 +812,10 @@ export const ElementListView = ({
                     {desktopApp && (
                       <button
                         className="mini-btn"
-                        onClick={() => void revealPathWithFeedback(row.realPath)}
+                        onClick={() => void openPathWithFeedback(row.realPath)}
                         type="button"
                       >
-                        Reveal
+                        Open
                       </button>
                     )}
                     <button
@@ -820,12 +850,16 @@ export const ElementListView = ({
                           label: "Copy path",
                           onClick: () => void copyToClipboard(row.realPath)
                         },
+                        {
+                          label: "All versions",
+                          onClick: () =>
+                            setHistoryState({
+                              elementId: row.element.id,
+                              conceptId: row.concept.id
+                            })
+                        },
                         ...(row.conceptIndex === 0
                           ? [
-                              {
-                                label: "All versions",
-                                onClick: () => setHistoryElementId(row.element.id)
-                              },
                               {
                                 label: "Change parent",
                                 onClick: () =>
