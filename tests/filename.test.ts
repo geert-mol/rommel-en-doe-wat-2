@@ -57,7 +57,7 @@ describe("filename tools", () => {
     };
 
     expect(buildSuggestedFilePath(fileName, element, project, product, "C:/Engineering")).toBe(
-      "C:/Engineering/Aquaframe/Product/Engineering/Balcony Kit/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
+      "C:/Engineering/0013 - Aquaframe/0009-Balcony Kit/03. Engineering/3D Modellen/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
     );
   });
 });

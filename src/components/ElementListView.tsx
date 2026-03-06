@@ -101,6 +101,14 @@ const copyToClipboard = async (value: string): Promise<void> => {
   await navigator.clipboard.writeText(value);
 };
 
+const revealPathWithFeedback = async (targetPath: string): Promise<void> => {
+  const didReveal = await revealFilePath(targetPath);
+  if (didReveal) return;
+
+  await copyToClipboard(targetPath);
+  window.alert("File not found. Full path copied to clipboard.");
+};
+
 const KebabMenu = ({
   menuId,
   items,
@@ -545,7 +553,7 @@ export const ElementListView = ({
                                 },
                                 {
                                   label: "Reveal folder",
-                                  onClick: () => void revealFilePath(historyRow.realPath)
+                                  onClick: () => void revealPathWithFeedback(historyRow.realPath)
                                 }
                               ]
                             : []),
@@ -759,7 +767,7 @@ export const ElementListView = ({
                               },
                               {
                                 label: "Reveal folder",
-                                onClick: () => void revealFilePath(row.realPath)
+                                onClick: () => void revealPathWithFeedback(row.realPath)
                               }
                             ]
                           : []),

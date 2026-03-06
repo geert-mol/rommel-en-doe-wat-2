@@ -62,8 +62,7 @@ export const revealFilePath = async (targetPath: string): Promise<boolean> => {
     return false;
   }
 
-  await bridge.shell.revealPath(targetPath);
-  return true;
+  return bridge.shell.revealPath(targetPath);
 };
 
 export const getStorageLocation = async (): Promise<string | null> => {

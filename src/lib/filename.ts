@@ -21,6 +21,12 @@ export interface FilenameParts {
 export const padProjectOrProductId = (value: string): string =>
   value.trim().replace(/\D/g, "").padStart(3, "0").slice(-3);
 
+const formatFolderCode = (value: string): string => {
+  const cleaned = value.trim().replace(/\D/g, "");
+  if (cleaned.length === 0) return "0000";
+  return cleaned.padStart(4, "0");
+};
+
 export const normalizePartNumber = (value: string): string => {
   const cleaned = value.trim().replace(/\D/g, "");
   if (cleaned.length === 0) return "00";
@@ -69,5 +75,7 @@ export const buildSuggestedFilePath = (
 ): string => {
   const root = resolveRootPath(project, defaultRootPath).replace(/[\\/]+$/, "");
   const ext = extensionForType(element.type);
-  return `${root}/${project.name}/Product/Engineering/${product.name}/${fileName}${ext}`;
+  const projectFolder = `${formatFolderCode(project.projectId)} - ${project.name}`;
+  const productFolder = `${formatFolderCode(product.productId)}-${product.name}`;
+  return `${root}/${projectFolder}/${productFolder}/03. Engineering/3D Modellen/${fileName}${ext}`;
 };

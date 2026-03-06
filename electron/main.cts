@@ -93,10 +93,20 @@ const registerIpcHandlers = () => {
     const fallbackDirectory = normalizeDirectoryChoice(targetPath);
     if (!fallbackDirectory) return `Path not found: ${targetPath}`;
 
-    return shell.openPath(existsSync(targetPath) ? targetPath : fallbackDirectory);
+    const resolvedPath = existsSync(targetPath)
+      ? path.normalize(targetPath)
+      : path.normalize(fallbackDirectory);
+
+    return shell.openPath(resolvedPath);
   });
   ipcMain.handle("shell:reveal-path", (_event, targetPath: string) => {
-    shell.showItemInFolder(targetPath);
+    const normalizedPath = path.normalize(targetPath);
+    if (!existsSync(normalizedPath)) {
+      logInfo("Reveal skipped because file does not exist.", { targetPath, normalizedPath });
+      return false;
+    }
+
+    shell.showItemInFolder(normalizedPath);
     return true;
   });
   ipcMain.on("log:renderer", (_event, payload: { level?: string; message?: string; details?: string }) => {
