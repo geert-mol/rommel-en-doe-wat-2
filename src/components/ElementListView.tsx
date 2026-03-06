@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { isDesktopApp, openFilePath, revealFilePath } from "../lib/desktop";
 import {
   buildSuggestedFilePath,
   formatVersionLabel,
@@ -332,6 +333,7 @@ export const ElementListView = ({
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
+  const desktopApp = isDesktopApp();
 
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
@@ -535,6 +537,18 @@ export const ElementListView = ({
                             label: "Copy name",
                             onClick: () => void copyToClipboard(historyRow.fileName)
                           },
+                          ...(desktopApp
+                            ? [
+                                {
+                                  label: "Open path",
+                                  onClick: () => void openFilePath(historyRow.realPath)
+                                },
+                                {
+                                  label: "Reveal folder",
+                                  onClick: () => void revealFilePath(historyRow.realPath)
+                                }
+                              ]
+                            : []),
                           {
                             label: "Copy path",
                             onClick: () => void copyToClipboard(historyRow.realPath)
@@ -737,6 +751,18 @@ export const ElementListView = ({
                           label: "Copy name",
                           onClick: () => void copyToClipboard(row.fileName)
                         },
+                        ...(desktopApp
+                          ? [
+                              {
+                                label: "Open path",
+                                onClick: () => void openFilePath(row.realPath)
+                              },
+                              {
+                                label: "Reveal folder",
+                                onClick: () => void revealFilePath(row.realPath)
+                              }
+                            ]
+                          : []),
                         {
                           label: "Copy path",
                           onClick: () => void copyToClipboard(row.realPath)

@@ -1,0 +1,455 @@
+import Database from "better-sqlite3";
+import { app } from "electron";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+
+type ReleaseState = "PT" | "PR" | "RL" | "RR";
+type ElementType = "MM" | "HA" | "SA" | "PA";
+
+interface AppSettings {
+  defaultRootPath: string;
+}
+
+interface Project {
+  id: string;
+  projectId: string;
+  name: string;
+  rootPath?: string;
+}
+
+interface Product {
+  id: string;
+  projectId: string;
+  productId: string;
+  name: string;
+}
+
+interface ElementVersion {
+  id: string;
+  majorVersion: number;
+  minorVersion: number;
+  releaseState: ReleaseState;
+  createdAt: string;
+}
+
+interface ElementConcept {
+  id: string;
+  conceptCode: string;
+  versions: ElementVersion[];
+}
+
+interface EngineeringElement {
+  id: string;
+  projectId: string;
+  productId: string;
+  parentElementId?: string;
+  type: ElementType;
+  partNumber: string;
+  descriptionSlug: string;
+  concepts: ElementConcept[];
+}
+
+interface AppState {
+  settings: AppSettings;
+  projects: Project[];
+  products: Product[];
+  elements: EngineeringElement[];
+  selectedProjectId?: string;
+  selectedProductId?: string;
+}
+
+interface ProjectRow {
+  id: string;
+  project_code: string;
+  name: string;
+  root_path: string | null;
+}
+
+interface ProductRow {
+  id: string;
+  project_ref: string;
+  product_code: string;
+  name: string;
+}
+
+interface ElementRow {
+  id: string;
+  project_ref: string;
+  product_ref: string;
+  parent_element_ref: string | null;
+  type: ElementType;
+  part_number: string;
+  description_slug: string;
+}
+
+interface ConceptRow {
+  id: string;
+  element_ref: string;
+  concept_code: string;
+}
+
+interface VersionRow {
+  id: string;
+  concept_ref: string;
+  major_version: number;
+  minor_version: number;
+  release_state: ReleaseState;
+  created_at: string;
+}
+
+interface SettingsRow {
+  default_root_path: string;
+}
+
+interface MetaRow {
+  key: string;
+  value: string;
+}
+
+const createInitialState = (): AppState => ({
+  settings: { defaultRootPath: "C:/Engineering" },
+  projects: [],
+  products: [],
+  elements: []
+});
+
+const databaseFileName = "rnd-pdm.sqlite";
+let database: Database.Database | null = null;
+
+const getDatabasePath = (): string => {
+  const userDataPath = app.getPath("userData");
+  mkdirSync(userDataPath, { recursive: true });
+  return path.join(userDataPath, databaseFileName);
+};
+
+const getDatabase = (): Database.Database => {
+  if (database) return database;
+
+  database = new Database(getDatabasePath());
+  database.pragma("journal_mode = WAL");
+  database.pragma("foreign_keys = ON");
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      default_root_path TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      project_code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      root_path TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS products (
+      id TEXT PRIMARY KEY,
+      project_ref TEXT NOT NULL,
+      product_code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      FOREIGN KEY (project_ref) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS elements (
+      id TEXT PRIMARY KEY,
+      project_ref TEXT NOT NULL,
+      product_ref TEXT NOT NULL,
+      parent_element_ref TEXT,
+      type TEXT NOT NULL,
+      part_number TEXT NOT NULL,
+      description_slug TEXT NOT NULL,
+      FOREIGN KEY (project_ref) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_ref) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_element_ref) REFERENCES elements(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS concepts (
+      id TEXT PRIMARY KEY,
+      element_ref TEXT NOT NULL,
+      concept_code TEXT NOT NULL,
+      FOREIGN KEY (element_ref) REFERENCES elements(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS versions (
+      id TEXT PRIMARY KEY,
+      concept_ref TEXT NOT NULL,
+      major_version INTEGER NOT NULL,
+      minor_version INTEGER NOT NULL,
+      release_state TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (concept_ref) REFERENCES concepts(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_products_project_ref ON products(project_ref);
+    CREATE INDEX IF NOT EXISTS idx_elements_product_ref ON elements(product_ref);
+    CREATE INDEX IF NOT EXISTS idx_elements_parent_ref ON elements(parent_element_ref);
+    CREATE INDEX IF NOT EXISTS idx_concepts_element_ref ON concepts(element_ref);
+    CREATE INDEX IF NOT EXISTS idx_versions_concept_ref ON versions(concept_ref);
+  `);
+
+  database
+    .prepare(
+      `
+        INSERT INTO settings (id, default_root_path)
+        VALUES (1, ?)
+        ON CONFLICT(id) DO NOTHING
+      `
+    )
+    .run(createInitialState().settings.defaultRootPath);
+
+  return database;
+};
+
+const saveStateTxn = (db: Database.Database) =>
+  db.transaction((state: AppState) => {
+    db.prepare("DELETE FROM versions").run();
+    db.prepare("DELETE FROM concepts").run();
+    db.prepare("DELETE FROM elements").run();
+    db.prepare("DELETE FROM products").run();
+    db.prepare("DELETE FROM projects").run();
+
+    db.prepare(
+      `
+        INSERT INTO settings (id, default_root_path)
+        VALUES (1, ?)
+        ON CONFLICT(id) DO UPDATE SET default_root_path = excluded.default_root_path
+      `
+    ).run(state.settings.defaultRootPath);
+
+    const projectStatement = db.prepare(
+      `
+        INSERT INTO projects (id, project_code, name, root_path)
+        VALUES (@id, @project_code, @name, @root_path)
+      `
+    );
+    const productStatement = db.prepare(
+      `
+        INSERT INTO products (id, project_ref, product_code, name)
+        VALUES (@id, @project_ref, @product_code, @name)
+      `
+    );
+    const elementStatement = db.prepare(
+      `
+        INSERT INTO elements (
+          id,
+          project_ref,
+          product_ref,
+          parent_element_ref,
+          type,
+          part_number,
+          description_slug
+        )
+        VALUES (
+          @id,
+          @project_ref,
+          @product_ref,
+          @parent_element_ref,
+          @type,
+          @part_number,
+          @description_slug
+        )
+      `
+    );
+    const conceptStatement = db.prepare(
+      `
+        INSERT INTO concepts (id, element_ref, concept_code)
+        VALUES (@id, @element_ref, @concept_code)
+      `
+    );
+    const versionStatement = db.prepare(
+      `
+        INSERT INTO versions (
+          id,
+          concept_ref,
+          major_version,
+          minor_version,
+          release_state,
+          created_at
+        )
+        VALUES (
+          @id,
+          @concept_ref,
+          @major_version,
+          @minor_version,
+          @release_state,
+          @created_at
+        )
+      `
+    );
+    const metaStatement = db.prepare(
+      `
+        INSERT INTO meta (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `
+    );
+
+    for (const project of state.projects) {
+      projectStatement.run({
+        id: project.id,
+        project_code: project.projectId,
+        name: project.name,
+        root_path: project.rootPath ?? null
+      });
+    }
+
+    for (const product of state.products) {
+      productStatement.run({
+        id: product.id,
+        project_ref: product.projectId,
+        product_code: product.productId,
+        name: product.name
+      });
+    }
+
+    for (const element of state.elements) {
+      elementStatement.run({
+        id: element.id,
+        project_ref: element.projectId,
+        product_ref: element.productId,
+        parent_element_ref: element.parentElementId ?? null,
+        type: element.type,
+        part_number: element.partNumber,
+        description_slug: element.descriptionSlug
+      });
+
+      for (const concept of element.concepts) {
+        conceptStatement.run({
+          id: concept.id,
+          element_ref: element.id,
+          concept_code: concept.conceptCode
+        });
+
+        for (const version of concept.versions) {
+          versionStatement.run({
+            id: version.id,
+            concept_ref: concept.id,
+            major_version: version.majorVersion,
+            minor_version: version.minorVersion,
+            release_state: version.releaseState,
+            created_at: version.createdAt
+          });
+        }
+      }
+    }
+
+    metaStatement.run("selectedProjectId", state.selectedProjectId ?? "");
+    metaStatement.run("selectedProductId", state.selectedProductId ?? "");
+  });
+
+export const loadState = (): AppState => {
+  const db = getDatabase();
+  const settings = db.prepare("SELECT default_root_path FROM settings WHERE id = 1").get() as
+    | SettingsRow
+    | undefined;
+  const projects = db
+    .prepare(
+      "SELECT id, project_code, name, root_path FROM projects ORDER BY name COLLATE NOCASE, project_code"
+    )
+    .all() as ProjectRow[];
+  const products = db
+    .prepare(
+      "SELECT id, project_ref, product_code, name FROM products ORDER BY name COLLATE NOCASE, product_code"
+    )
+    .all() as ProductRow[];
+  const elements = db
+    .prepare(
+      `
+        SELECT
+          id,
+          project_ref,
+          product_ref,
+          parent_element_ref,
+          type,
+          part_number,
+          description_slug
+        FROM elements
+      `
+    )
+    .all() as ElementRow[];
+  const concepts = db
+    .prepare("SELECT id, element_ref, concept_code FROM concepts ORDER BY concept_code")
+    .all() as ConceptRow[];
+  const versions = db
+    .prepare(
+      `
+        SELECT
+          id,
+          concept_ref,
+          major_version,
+          minor_version,
+          release_state,
+          created_at
+        FROM versions
+        ORDER BY major_version DESC, minor_version DESC, created_at DESC
+      `
+    )
+    .all() as VersionRow[];
+  const metaRows = db.prepare("SELECT key, value FROM meta").all() as MetaRow[];
+  const meta = new Map(metaRows.map((row) => [row.key, row.value]));
+
+  const versionsByConceptId = new Map<string, ElementVersion[]>();
+  for (const version of versions) {
+    const bucket = versionsByConceptId.get(version.concept_ref) ?? [];
+    bucket.push({
+      id: version.id,
+      majorVersion: version.major_version,
+      minorVersion: version.minor_version,
+      releaseState: version.release_state,
+      createdAt: version.created_at
+    });
+    versionsByConceptId.set(version.concept_ref, bucket);
+  }
+
+  const conceptsByElementId = new Map<string, ElementConcept[]>();
+  for (const concept of concepts) {
+    const bucket = conceptsByElementId.get(concept.element_ref) ?? [];
+    bucket.push({
+      id: concept.id,
+      conceptCode: concept.concept_code,
+      versions: versionsByConceptId.get(concept.id) ?? []
+    });
+    conceptsByElementId.set(concept.element_ref, bucket);
+  }
+
+  return {
+    settings: {
+      defaultRootPath: settings?.default_root_path ?? createInitialState().settings.defaultRootPath
+    },
+    projects: projects.map((project) => ({
+      id: project.id,
+      projectId: project.project_code,
+      name: project.name,
+      rootPath: project.root_path ?? undefined
+    })),
+    products: products.map((product) => ({
+      id: product.id,
+      projectId: product.project_ref,
+      productId: product.product_code,
+      name: product.name
+    })),
+    elements: elements.map((element) => ({
+      id: element.id,
+      projectId: element.project_ref,
+      productId: element.product_ref,
+      parentElementId: element.parent_element_ref ?? undefined,
+      type: element.type,
+      partNumber: element.part_number,
+      descriptionSlug: element.description_slug,
+      concepts: conceptsByElementId.get(element.id) ?? []
+    })),
+    selectedProjectId: meta.get("selectedProjectId") || undefined,
+    selectedProductId: meta.get("selectedProductId") || undefined
+  };
+};
+
+export const saveState = (state: AppState): void => {
+  const db = getDatabase();
+  saveStateTxn(db)(state);
+};
+
+export const getStateDatabasePath = (): string => getDatabasePath();

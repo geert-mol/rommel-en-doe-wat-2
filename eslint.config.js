@@ -8,12 +8,15 @@ export default tseslint.config(
   { ignores: ["dist", "coverage", "node_modules", "**/*.d.ts"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
-    files: ["**/*.{ts,tsx}"],
+    files: ["**/*.{ts,tsx,cts}"],
     languageOptions: {
       ecmaVersion: 2022,
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        ...globals.node
+      },
       parserOptions: {
-        project: ["./tsconfig.app.json", "./tsconfig.node.json"],
+        project: ["./tsconfig.app.json", "./tsconfig.node.json", "./tsconfig.electron.json"],
         tsconfigRootDir: import.meta.dirname
       }
     },

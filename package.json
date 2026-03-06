@@ -4,14 +4,21 @@
   "version": "0.1.0",
   "description": "Rommel en doe wat - lightweight PDM MVP for prototype engineering",
   "type": "module",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev:desktop": "node scripts/dev-electron.mjs",
+    "build": "npm run build:renderer && npm run build:desktop",
+    "build:renderer": "vite build",
+    "build:desktop": "node -e \"require('node:fs').rmSync('dist-electron', { recursive: true, force: true })\" && tsc -p tsconfig.electron.json",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "test": "vitest run --coverage",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [
     "pdm",
@@ -22,16 +29,20 @@
   "author": "Geert Mol",
   "license": "MIT",
   "dependencies": {
+    "better-sqlite3": "^12.6.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.0.18",
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.3",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
@@ -41,5 +52,28 @@
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18"
+  },
+  "build": {
+    "appId": "com.geertmol.rndpdm",
+    "productName": "Rommel en doe wat",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false,
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
   }
 }

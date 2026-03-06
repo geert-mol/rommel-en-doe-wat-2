@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { isDesktopApp, loadAppState, saveAppState } from "./desktop";
 import {
   normalizePartNumber,
   padProjectOrProductId,
   slugify
 } from "./filename";
+import { createInitialAppState } from "./persistence";
 import type {
   AppState,
   EngineeringElement,
@@ -14,14 +16,7 @@ import type {
 } from "./types";
 import { nextConceptCode, nextVersion } from "./versioning";
 
-const STORAGE_KEY = "rnd-pdm-state-v1";
-
-const initialState: AppState = {
-  settings: { defaultRootPath: "C:/Engineering" },
-  projects: [],
-  products: [],
-  elements: []
-};
+const initialState: AppState = createInitialAppState();
 
 interface DeleteVersionPayload {
   elementId: string;
@@ -294,33 +289,51 @@ const reducer = (state: AppState, action: Action): AppState => {
   }
 };
 
-const parseStoredState = (raw: string): AppState | null => {
-  try {
-    const parsed = JSON.parse(raw) as AppState;
-    if (!parsed || typeof parsed !== "object") return null;
-    if (!Array.isArray(parsed.projects)) return null;
-    if (!Array.isArray(parsed.products)) return null;
-    if (!Array.isArray(parsed.elements)) return null;
-    if (!parsed.settings || typeof parsed.settings.defaultRootPath !== "string") return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
 export const useAppStore = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [isHydrating, setIsHydrating] = useState(true);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const skipNextPersist = useRef(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
-    const parsed = parseStoredState(stored);
-    if (parsed) dispatch({ type: "LOAD", payload: parsed });
+    let isCancelled = false;
+
+    const hydrate = async () => {
+      try {
+        const storedState = await loadAppState();
+        if (isCancelled) return;
+        dispatch({ type: "LOAD", payload: storedState });
+        skipNextPersist.current = true;
+        setStorageError(null);
+      } catch (error) {
+        if (isCancelled) return;
+        setStorageError(error instanceof Error ? error.message : "State load failed.");
+      } finally {
+        if (!isCancelled) {
+          setIsHydrating(false);
+        }
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (isHydrating) return;
+
+    if (skipNextPersist.current) {
+      skipNextPersist.current = false;
+      return;
+    }
+
+    void saveAppState(state).catch((error: unknown) => {
+      setStorageError(error instanceof Error ? error.message : "State save failed.");
+    });
+  }, [isHydrating, state]);
 
   const selectedProject = useMemo(
     () => state.projects.find((project) => project.id === state.selectedProjectId),
@@ -353,6 +366,9 @@ export const useAppStore = () => {
     selectedProject,
     selectedProduct,
     selectedElements,
+    isHydrating,
+    storageError,
+    storageMode: isDesktopApp() ? "sqlite" : "browser",
     dispatch,
     addProject,
     addProduct

@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
+import { getStorageLocation, isDesktopApp, pickDirectory } from "./lib/desktop";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
@@ -17,8 +18,19 @@ const nextPartNumberForProduct = (partNumbers: string[]): string => {
 };
 
 function App() {
-  const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =
-    useAppStore();
+  const {
+    state,
+    selectedProject,
+    selectedProduct,
+    selectedElements,
+    isHydrating,
+    storageError,
+    storageMode,
+    dispatch,
+    addProject,
+    addProduct
+  } = useAppStore();
+  const [storageLocation, setStorageLocation] = useState<string | null>(null);
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -38,6 +50,22 @@ function App() {
     productId?: string;
     value: string;
   }>({ value: "" });
+  const desktopApp = isDesktopApp();
+
+  useEffect(() => {
+    if (!desktopApp) return;
+
+    let isCancelled = false;
+    void getStorageLocation().then((location) => {
+      if (!isCancelled) {
+        setStorageLocation(location);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [desktopApp]);
 
   const productsForSelectedProject = useMemo(
     () => state.products.filter((product) => product.projectId === selectedProject?.id),
@@ -70,6 +98,18 @@ function App() {
     });
   };
 
+  const browseForDefaultRoot = async () => {
+    const selectedPath = await pickDirectory(state.settings.defaultRootPath);
+    if (!selectedPath) return;
+    dispatch({ type: "SET_DEFAULT_ROOT", payload: selectedPath });
+  };
+
+  const browseForProjectRoot = async () => {
+    const selectedPath = await pickDirectory(projectForm.rootPath || state.settings.defaultRootPath);
+    if (!selectedPath) return;
+    setProjectForm((prev) => ({ ...prev, rootPath: selectedPath }));
+  };
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -82,14 +122,30 @@ function App() {
           <h2>Settings</h2>
           <label>
             Default root folder
-            <input
-              value={state.settings.defaultRootPath}
-              onChange={(event) =>
-                dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
-              }
-              placeholder="C:/Engineering"
-            />
+            <div className="field-action">
+              <input
+                value={state.settings.defaultRootPath}
+                onChange={(event) =>
+                  dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
+                }
+                placeholder="C:/Engineering"
+              />
+              {desktopApp && (
+                <button className="ghost-btn" onClick={() => void browseForDefaultRoot()} type="button">
+                  Browse
+                </button>
+              )}
+            </div>
           </label>
+          <p className="helper-text">
+            Storage: {storageMode === "sqlite" ? "desktop SQLite" : "browser local fallback"}
+          </p>
+          {storageLocation && (
+            <p className="helper-text mono-hint" title={storageLocation}>
+              {storageLocation}
+            </p>
+          )}
+          {storageError && <p className="helper-text error-text">{storageError}</p>}
         </section>
 
         <section className="panel">
@@ -120,13 +176,20 @@ function App() {
               onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder="Project name"
             />
-            <input
-              value={projectForm.rootPath}
-              onChange={(event) =>
-                setProjectForm((prev) => ({ ...prev, rootPath: event.target.value }))
-              }
-              placeholder="Optional root override"
-            />
+            <div className="field-action">
+              <input
+                value={projectForm.rootPath}
+                onChange={(event) =>
+                  setProjectForm((prev) => ({ ...prev, rootPath: event.target.value }))
+                }
+                placeholder="Optional root override"
+              />
+              {desktopApp && (
+                <button className="ghost-btn" onClick={() => void browseForProjectRoot()} type="button">
+                  Browse
+                </button>
+              )}
+            </div>
             <button type="submit">Create project</button>
           </form>
 
@@ -196,7 +259,12 @@ function App() {
       </aside>
 
       <main className="main">
-        {!selectedProject || !selectedProduct ? (
+        {isHydrating ? (
+          <section className="hero">
+            <h2>Loading workspace</h2>
+            <p>Restoring projects, products, tree state, and settings.</p>
+          </section>
+        ) : !selectedProject || !selectedProduct ? (
           <section className="hero">
             <h2>Select project + product</h2>
             <p>Create both in left rail, then build engineering structure.</p>

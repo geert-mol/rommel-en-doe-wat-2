@@ -113,6 +113,13 @@ select {
   background: #fff;
 }
 
+.field-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 button {
   border: 1px solid transparent;
   border-radius: 8px;
@@ -128,6 +135,21 @@ button:hover {
 .compact-form {
   display: grid;
   gap: 0.5rem;
+}
+
+.helper-text {
+  margin: 0.45rem 0 0;
+  font-size: 0.76rem;
+  color: #54616a;
+}
+
+.mono-hint {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.error-text {
+  color: #9f2f18;
 }
 
 .compact-form button,
