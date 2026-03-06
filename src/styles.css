@@ -408,6 +408,67 @@ button:hover {
   padding: 0.2rem 0.3rem;
 }
 
+.history-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 25, 32, 0.38);
+  display: grid;
+  place-items: center;
+  z-index: 30;
+}
+
+.history-modal {
+  width: min(1000px, 92vw);
+  max-height: 86vh;
+  background: #fffdf8;
+  border: 1px solid #d8ceb7;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(16, 25, 32, 0.22);
+  overflow: hidden;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid #e1d8c2;
+  background: #f1ebd9;
+}
+
+.history-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.history-table-wrap {
+  max-height: calc(86vh - 54px);
+  overflow: auto;
+}
+
+.history-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 0.74rem;
+}
+
+.history-table th,
+.history-table td {
+  border: 1px solid #e1d8c2;
+  padding: 0.3rem 0.42rem;
+  white-space: nowrap;
+  background: #fffdf8;
+}
+
+.history-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1ebd9;
+}
+
 @media (max-width: 1000px) {
   .app {
     grid-template-columns: 1fr;

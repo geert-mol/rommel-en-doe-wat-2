@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   buildSuggestedFilePath,
   formatVersionLabel,
@@ -11,7 +12,7 @@ import type {
   ReleaseState
 } from "../lib/types";
 import { RELEASE_STATES } from "../lib/types";
-import { latestVersion } from "../lib/versioning";
+import { byVersionDesc, latestVersion } from "../lib/versioning";
 
 interface ElementListViewProps {
   elements: EngineeringElement[];
@@ -252,6 +253,8 @@ export const ElementListView = ({
   onAddVersion,
   onSetReleaseState
 }: ElementListViewProps) => {
+  const [historyElementId, setHistoryElementId] = useState<string | null>(null);
+
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
     const parentMap = new Map(elements.map((element) => [element.id, element]));
@@ -319,111 +322,230 @@ export const ElementListView = ({
     };
   }, [defaultRootPath, elements, product, project]);
 
+  const historyElement = useMemo(
+    () => elements.find((element) => element.id === historyElementId) ?? null,
+    [elements, historyElementId]
+  );
+
+  const historyRows = useMemo(() => {
+    if (!historyElement) return [];
+
+    return [...historyElement.concepts]
+      .sort((a, b) => a.conceptCode.localeCompare(b.conceptCode))
+      .flatMap((concept) =>
+        [...concept.versions].sort(byVersionDesc).map((version) => {
+          const fileName = generateFileName({
+            state: version.releaseState,
+            projectCode: project.projectId,
+            productCode: product.productId,
+            conceptCode: concept.conceptCode,
+            type: historyElement.type,
+            partNumber: historyElement.partNumber,
+            descriptionSlug: historyElement.descriptionSlug,
+            majorVersion: version.majorVersion,
+            minorVersion: version.minorVersion
+          });
+
+          return {
+            conceptCode: concept.conceptCode,
+            versionLabel: formatVersionLabel(version.majorVersion, version.minorVersion),
+            releaseState: version.releaseState,
+            createdAt: version.createdAt,
+            fileName,
+            realPath: buildSuggestedFilePath(
+              fileName,
+              historyElement,
+              project,
+              product,
+              defaultRootPath
+            )
+          };
+        })
+      );
+  }, [defaultRootPath, historyElement, product, project]);
+
   if (rows.length === 0) {
     return <p className="empty">No rows yet. List appears when elements are added.</p>;
   }
 
-  return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th className="branch-head">Tree</th>
-            <th>Parent</th>
-            <th>Type</th>
-            <th>Part</th>
-            <th>Description</th>
-            <th>Concept</th>
-            <th>Version</th>
-            <th>State</th>
-            <th>Filename</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.version.id}>
-              <td className="branch-cell">
-                <BranchGraphCell
-                  row={row}
-                  maxDepth={maxDepth}
-                  segments={segmentsByRow[row.rowIndex] ?? []}
-                />
-              </td>
-              <td>{row.parentLabel}</td>
-              <td>{row.element.type}</td>
-              <td>{row.element.partNumber}</td>
-              <td>{row.element.descriptionSlug}</td>
-              <td>{row.concept.conceptCode}</td>
-              <td>{formatVersionLabel(row.version.majorVersion, row.version.minorVersion)}</td>
-              <td>
-                <select
-                  className="table-select"
-                  value={row.version.releaseState}
-                  onChange={(event) =>
-                    onSetReleaseState(
-                      row.element.id,
-                      row.concept.id,
-                      row.version.id,
-                      event.target.value as ReleaseState
-                    )
-                  }
-                >
-                  {RELEASE_STATES.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="mono-cell" title={row.fileName}>
-                {row.fileName}
-              </td>
-              <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
-              <td>
-                <div className="dense-actions">
-                  <button
-                    className="mini-btn"
-                    onClick={() => void copyToClipboard(row.fileName)}
-                    type="button"
-                  >
-                    Copy name
-                  </button>
-                  <button
-                    className="mini-btn"
-                    onClick={() => void copyToClipboard(row.realPath)}
-                    type="button"
-                  >
-                    Copy path
-                  </button>
-                  <button
-                    className="mini-btn"
-                    onClick={() => onAddConcept(row.element.id)}
-                    type="button"
-                  >
-                    +Concept
-                  </button>
-                  <button
-                    className="mini-btn"
-                    onClick={() => onAddVersion(row.element.id, row.concept.id, "major")}
-                    type="button"
-                  >
-                    +Major
-                  </button>
-                  <button
-                    className="mini-btn"
-                    onClick={() => onAddVersion(row.element.id, row.concept.id, "minor")}
-                    type="button"
-                  >
-                    +Minor
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  const historyModal = historyElement ? (
+    <div className="history-backdrop" onClick={() => setHistoryElementId(null)} role="presentation">
+      <section
+        className="history-modal"
+        onClick={(event) => event.stopPropagation()}
+        aria-modal="true"
+        role="dialog"
+      >
+        <header className="history-header">
+          <h3>
+            {historyElement.type} {historyElement.partNumber} - {historyElement.descriptionSlug}
+          </h3>
+          <button className="mini-btn" onClick={() => setHistoryElementId(null)} type="button">
+            Close
+          </button>
+        </header>
+        <div className="history-table-wrap">
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th>Concept</th>
+                <th>Version</th>
+                <th>State</th>
+                <th>Filename</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyRows.map((historyRow) => (
+                <tr key={`${historyRow.conceptCode}-${historyRow.versionLabel}-${historyRow.createdAt}`}>
+                  <td>{historyRow.conceptCode}</td>
+                  <td>{historyRow.versionLabel}</td>
+                  <td>{historyRow.releaseState}</td>
+                  <td className="mono-cell" title={historyRow.fileName}>
+                    {historyRow.fileName}
+                  </td>
+                  <td>{new Date(historyRow.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <div className="dense-actions">
+                      <button
+                        className="mini-btn"
+                        onClick={() => void copyToClipboard(historyRow.fileName)}
+                        type="button"
+                      >
+                        Copy name
+                      </button>
+                      <button
+                        className="mini-btn"
+                        onClick={() => void copyToClipboard(historyRow.realPath)}
+                        type="button"
+                      >
+                        Copy path
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="branch-head">Tree</th>
+              <th>Parent</th>
+              <th>Type</th>
+              <th>Part</th>
+              <th>Description</th>
+              <th>Concept</th>
+              <th>Version</th>
+              <th>State</th>
+              <th>Filename</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.version.id}>
+                <td className="branch-cell">
+                  <BranchGraphCell
+                    row={row}
+                    maxDepth={maxDepth}
+                    segments={segmentsByRow[row.rowIndex] ?? []}
+                  />
+                </td>
+                <td>{row.parentLabel}</td>
+                <td>{row.element.type}</td>
+                <td>{row.element.partNumber}</td>
+                <td>{row.element.descriptionSlug}</td>
+                <td>{row.concept.conceptCode}</td>
+                <td>{formatVersionLabel(row.version.majorVersion, row.version.minorVersion)}</td>
+                <td>
+                  <select
+                    className="table-select"
+                    value={row.version.releaseState}
+                    onChange={(event) =>
+                      onSetReleaseState(
+                        row.element.id,
+                        row.concept.id,
+                        row.version.id,
+                        event.target.value as ReleaseState
+                      )
+                    }
+                  >
+                    {RELEASE_STATES.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="mono-cell" title={row.fileName}>
+                  {row.fileName}
+                </td>
+                <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <div className="dense-actions">
+                    <button
+                      className="mini-btn"
+                      onClick={() => void copyToClipboard(row.fileName)}
+                      type="button"
+                    >
+                      Copy name
+                    </button>
+                    <button
+                      className="mini-btn"
+                      onClick={() => void copyToClipboard(row.realPath)}
+                      type="button"
+                    >
+                      Copy path
+                    </button>
+                    <button
+                      className="mini-btn"
+                      onClick={() => onAddConcept(row.element.id)}
+                      type="button"
+                    >
+                      +Concept
+                    </button>
+                    <button
+                      className="mini-btn"
+                      onClick={() => onAddVersion(row.element.id, row.concept.id, "major")}
+                      type="button"
+                    >
+                      +Major
+                    </button>
+                    <button
+                      className="mini-btn"
+                      onClick={() => onAddVersion(row.element.id, row.concept.id, "minor")}
+                      type="button"
+                    >
+                      +Minor
+                    </button>
+                    {row.conceptIndex === 0 && (
+                      <button
+                        className="mini-btn"
+                        onClick={() => setHistoryElementId(row.element.id)}
+                        type="button"
+                      >
+                        All versions
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {historyModal ? createPortal(historyModal, document.body) : null}
+    </>
   );
 };
