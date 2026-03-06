@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isDesktopApp, openFilePath, revealFilePath } from "../lib/desktop";
 import {
@@ -100,6 +100,19 @@ const xForLane = (lane: number): number => GRAPH_PAD + lane * LANE_STEP + 6;
 const copyToClipboard = async (value: string): Promise<void> => {
   await navigator.clipboard.writeText(value);
 };
+
+const CopyIcon = () => (
+  <svg aria-hidden="true" className="copy-icon" viewBox="0 0 16 16">
+    <rect x="5" y="3" width="8" height="10" rx="1.5" />
+    <rect x="3" y="5" width="8" height="8" rx="1.5" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg aria-hidden="true" className="copy-icon" viewBox="0 0 16 16">
+    <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+  </svg>
+);
 
 const revealPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didReveal = await revealFilePath(targetPath);
@@ -341,7 +354,18 @@ export const ElementListView = ({
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [parentEdit, setParentEdit] = useState<ParentEditState | null>(null);
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
+  const [copiedFilenameId, setCopiedFilenameId] = useState<string | null>(null);
+  const copiedFilenameTimerRef = useRef<number | null>(null);
   const desktopApp = isDesktopApp();
+
+  useEffect(
+    () => () => {
+      if (copiedFilenameTimerRef.current !== null) {
+        window.clearTimeout(copiedFilenameTimerRef.current);
+      }
+    },
+    []
+  );
 
   const { rows, maxDepth, segmentsByRow } = useMemo(() => {
     const ordered = buildElementOrder(elements);
@@ -496,6 +520,20 @@ export const ElementListView = ({
       top,
       items
     });
+  };
+
+  const copyFilenameWithFeedback = async (copyId: string, value: string) => {
+    await copyToClipboard(value);
+    setCopiedFilenameId(copyId);
+
+    if (copiedFilenameTimerRef.current !== null) {
+      window.clearTimeout(copiedFilenameTimerRef.current);
+    }
+
+    copiedFilenameTimerRef.current = window.setTimeout(() => {
+      setCopiedFilenameId((current) => (current === copyId ? null : current));
+      copiedFilenameTimerRef.current = null;
+    }, 1200);
   };
 
   const historyModal = historyElement ? (
@@ -726,7 +764,17 @@ export const ElementListView = ({
                   </select>
                 </td>
                 <td className="mono-cell" title={row.fileName}>
-                  {row.fileName}
+                  <div className="filename-cell">
+                    <span className="filename-text">{row.fileName}</span>
+                    <button
+                      aria-label={`Copy filename ${row.fileName}`}
+                      className={`filename-copy-btn ${copiedFilenameId === row.version.id ? "is-copied" : ""}`}
+                      onClick={() => void copyFilenameWithFeedback(row.version.id, row.fileName)}
+                      type="button"
+                    >
+                      {copiedFilenameId === row.version.id ? <CheckIcon /> : <CopyIcon />}
+                    </button>
+                  </div>
                 </td>
                 <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
                 <td>
