@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ElementListView } from "./components/ElementListView";
 import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
 import { exportProjectExcel } from "./lib/desktop-export";
@@ -38,6 +39,12 @@ function App() {
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
+  const [parentDropdownRect, setParentDropdownRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -57,6 +64,8 @@ function App() {
     productId?: string;
     value: string;
   }>({ value: "" });
+  const parentDropdownTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const parentDropdownPanelRef = useRef<HTMLDivElement | null>(null);
   const desktopApp = isDesktopApp();
 
   useEffect(() => {
@@ -71,6 +80,47 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isParentDropdownOpen) return;
+
+    const updateParentDropdownRect = () => {
+      const trigger = parentDropdownTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      setParentDropdownRect({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width
+      });
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (parentDropdownTriggerRef.current?.contains(target)) return;
+      if (parentDropdownPanelRef.current?.contains(target)) return;
+      setIsParentDropdownOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsParentDropdownOpen(false);
+      }
+    };
+
+    updateParentDropdownRect();
+    window.addEventListener("resize", updateParentDropdownRect);
+    window.addEventListener("scroll", updateParentDropdownRect, true);
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", updateParentDropdownRect);
+      window.removeEventListener("scroll", updateParentDropdownRect, true);
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isParentDropdownOpen]);
 
   const productsForSelectedProject = useMemo(
     () => state.products.filter((product) => product.projectId === selectedProject?.id),
@@ -208,6 +258,37 @@ function App() {
         : [...prev.parentElementIds, parentId]
     }));
   };
+
+  const parentDropdown = isParentDropdownOpen && parentDropdownRect
+    ? createPortal(
+        <div
+          ref={parentDropdownPanelRef}
+          className="parent-dropdown-panel parent-dropdown-panel-floating"
+          style={{
+            top: parentDropdownRect.top,
+            left: parentDropdownRect.left,
+            width: parentDropdownRect.width
+          }}
+        >
+          <div className="parent-checklist">
+            <div className="parent-checklist-root">No selection = ROOT</div>
+            {parentCandidates.map((parent) => (
+              <label key={parent.id} className="parent-check">
+                <input
+                  checked={elementForm.parentElementIds.includes(parent.id)}
+                  onChange={() => toggleElementParentDraft(parent.id)}
+                  type="checkbox"
+                />
+                <span>
+                  {parent.type} {parent.partNumber} {parent.descriptionSlug}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   const settingsModal = isSettingsOpen ? (
     <div className="settings-backdrop" onClick={() => setIsSettingsOpen(false)} role="presentation">
@@ -499,26 +580,17 @@ function App() {
                 >
                   <label className="wide">
                     Parents
-                    <details className="parent-dropdown">
-                      <summary className="parent-dropdown-trigger">{selectedParentSummary}</summary>
-                      <div className="parent-dropdown-panel">
-                        <div className="parent-checklist">
-                          <div className="parent-checklist-root">No selection = ROOT</div>
-                          {parentCandidates.map((parent) => (
-                            <label key={parent.id} className="parent-check">
-                              <input
-                                checked={elementForm.parentElementIds.includes(parent.id)}
-                                onChange={() => toggleElementParentDraft(parent.id)}
-                                type="checkbox"
-                              />
-                              <span>
-                                {parent.type} {parent.partNumber} {parent.descriptionSlug}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
+                    <div className="parent-dropdown">
+                      <button
+                        ref={parentDropdownTriggerRef}
+                        aria-expanded={isParentDropdownOpen}
+                        className="parent-dropdown-trigger"
+                        onClick={() => setIsParentDropdownOpen((current) => !current)}
+                        type="button"
+                      >
+                        {selectedParentSummary}
+                      </button>
+                    </div>
                   </label>
                   <label>
                     Type
@@ -592,6 +664,7 @@ function App() {
         </main>
       </div>
       {settingsModal}
+      {parentDropdown}
     </>
   );
 }

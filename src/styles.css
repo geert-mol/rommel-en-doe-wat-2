@@ -148,7 +148,7 @@ select {
   gap: 0.35rem;
   max-height: 8.5rem;
   overflow: auto;
-  padding: 0.55rem 0.6rem;
+  padding: 0.5rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
@@ -177,12 +177,7 @@ select {
   position: relative;
 }
 
-.parent-dropdown[open] {
-  z-index: 4;
-}
-
 .parent-dropdown-trigger {
-  list-style: none;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.55rem 0.8rem 0.55rem 0.65rem;
@@ -193,10 +188,7 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.parent-dropdown-trigger::-webkit-details-marker {
-  display: none;
+  width: 100%;;
 }
 
 .parent-dropdown-trigger::after {
@@ -209,19 +201,20 @@ select {
   flex: 0 0 auto;
 }
 
-.parent-dropdown[open] .parent-dropdown-trigger::after {
+.parent-dropdown-trigger[aria-expanded="true"]::after {
   transform: rotate(-135deg) translateX(-2px);
 }
 
 .parent-dropdown-panel {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  left: 0;
-  right: 0;
+  z-index: 80;
 }
 
 .parent-dropdown-panel .parent-checklist {
   box-shadow: 0 12px 26px rgba(16, 25, 32, 0.14);
+}
+
+.parent-dropdown-panel-floating {
+  position: fixed;
 }
 
 button {
