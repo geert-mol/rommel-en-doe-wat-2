@@ -119,6 +119,12 @@ const CheckIcon = () => (
   </svg>
 );
 
+const ChevronDownIcon = () => (
+  <svg aria-hidden="true" className="copy-icon" viewBox="0 0 16 16">
+    <path d="M4 6.5 8 10 12 6.5" />
+  </svg>
+);
+
 const openPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didOpen = await openFilePath(targetPath);
   if (didOpen) return;
@@ -809,82 +815,91 @@ export const ElementListView = ({
                 <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
                 <td>
                   <div className="dense-actions">
-                    {desktopApp && (
+                    <div className="dense-actions-main">
+                      {desktopApp && (
+                        <button
+                          className="mini-btn"
+                          onClick={() => void openPathWithFeedback(row.realPath)}
+                          type="button"
+                        >
+                          Open
+                        </button>
+                      )}
                       <button
                         className="mini-btn"
-                        onClick={() => void openPathWithFeedback(row.realPath)}
+                        onClick={() => onAddConcept(row.element.id)}
                         type="button"
                       >
-                        Open
+                        +Concept
                       </button>
-                    )}
-                    <button
-                      className="mini-btn"
-                      onClick={() => onAddConcept(row.element.id)}
-                      type="button"
-                    >
-                      +Concept
-                    </button>
-                    <button
-                      className="mini-btn"
-                      onClick={() => onAddVersion(row.element.id, row.concept.id, "major")}
-                      type="button"
-                    >
-                      +Major
-                    </button>
-                    <button
-                      className="mini-btn"
-                      onClick={() => onAddVersion(row.element.id, row.concept.id, "minor")}
-                      type="button"
-                    >
-                      +Minor
-                    </button>
-                    <KebabMenu
-                      menuId={`grid-${row.element.id}-${row.concept.id}-${row.version.id}`}
-                      items={[
-                        {
-                          label: "Copy name",
-                          onClick: () => void copyToClipboard(row.fileName)
-                        },
-                        {
-                          label: "Copy path",
-                          onClick: () => void copyToClipboard(row.realPath)
-                        },
-                        {
-                          label: "All versions",
-                          onClick: () =>
-                            setHistoryState({
-                              elementId: row.element.id,
-                              conceptId: row.concept.id
-                            })
-                        },
-                        ...(row.conceptIndex === 0
-                          ? [
-                              {
-                                label: "Change parent",
-                                onClick: () =>
-                                  setParentEdit({
-                                    elementId: row.element.id,
-                                    selectedParentId: row.element.parentElementId ?? ""
-                                  })
-                              }
-                            ]
-                          : []),
-                        {
-                          label: "Delete",
-                          danger: true,
-                          onClick: () => {
-                            requestDelete(
-                              row.element.id,
-                              row.concept.id,
-                              row.version.id,
-                              "Delete latest visible version for this row?"
-                            );
-                          }
+                      <button
+                        className="mini-btn"
+                        onClick={() => onAddVersion(row.element.id, row.concept.id, "major")}
+                        type="button"
+                      >
+                        +Major
+                      </button>
+                      <button
+                        className="mini-btn"
+                        onClick={() => onAddVersion(row.element.id, row.concept.id, "minor")}
+                        type="button"
+                      >
+                        +Minor
+                      </button>
+                    </div>
+                    <div className="dense-actions-trailing">
+                      <button
+                        aria-label="Show all versions"
+                        className="icon-trigger"
+                        onClick={() =>
+                          setHistoryState({
+                            elementId: row.element.id,
+                            conceptId: row.concept.id
+                          })
                         }
-                      ]}
-                      onOpen={openKebabMenu}
-                    />
+                        type="button"
+                      >
+                        <ChevronDownIcon />
+                      </button>
+                      <KebabMenu
+                        menuId={`grid-${row.element.id}-${row.concept.id}-${row.version.id}`}
+                        items={[
+                          {
+                            label: "Copy name",
+                            onClick: () => void copyToClipboard(row.fileName)
+                          },
+                          {
+                            label: "Copy path",
+                            onClick: () => void copyToClipboard(row.realPath)
+                          },
+                          ...(row.conceptIndex === 0
+                            ? [
+                                {
+                                  label: "Change parent",
+                                  onClick: () =>
+                                    setParentEdit({
+                                      elementId: row.element.id,
+                                      selectedParentId: row.element.parentElementId ?? ""
+                                    })
+                                }
+                              ]
+                            : []),
+                          {
+                            label: "Delete",
+                            danger: true,
+                            onClick: () => {
+                              requestDelete(
+                                row.element.id,
+                                row.concept.id,
+                                row.version.id,
+                                "Delete latest visible version for this row?"
+                              );
+                            }
+                          }
+                        ]}
+                        onOpen={openKebabMenu}
+                      />
+                    </div>
                   </div>
                 </td>
               </tr>

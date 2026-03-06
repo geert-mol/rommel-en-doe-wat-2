@@ -492,11 +492,41 @@ button:hover {
   align-items: center;
 }
 
+.dense-actions-main,
+.dense-actions-trailing {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.dense-actions-trailing {
+  margin-left: auto;
+}
+
 .mini-btn {
   font-size: 0.68rem;
   background: #f2ecdd;
   border-color: #cfc5ac;
   padding: 0.2rem 0.3rem;
+}
+
+.icon-trigger {
+  width: 1.45rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfc5ac;
+  border-radius: 6px;
+  background: #f2ecdd;
+  color: #3a454d;
+  cursor: pointer;
+  padding: 0;
+  user-select: none;
+}
+
+.icon-trigger:hover {
+  background: #e9dfc8;
 }
 
 .danger-mini {
