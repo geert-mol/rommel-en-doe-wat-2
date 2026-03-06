@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
+import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
 import { exportProjectExcel } from "./lib/desktop-export";
 import { buildProjectExportPayload } from "./lib/export";
-import { isDesktopApp, pickDirectory } from "./lib/desktop";
+import { isDesktopApp, pickDirectory, saveAppState } from "./lib/desktop";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
@@ -29,10 +30,13 @@ function App() {
     storageError,
     dispatch,
     addProject,
-    addProduct
+    addProduct,
+    replaceState
   } = useAppStore();
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [isBackupBusy, setIsBackupBusy] = useState(false);
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -112,6 +116,46 @@ function App() {
     setExportFeedback(savedPath ? `Exported: ${savedPath}` : "Export cancelled.");
   };
 
+  const createBackup = async () => {
+    setIsBackupBusy(true);
+    setBackupFeedback(null);
+
+    try {
+      const savedPath = await exportDesktopBackup(state);
+      setBackupFeedback(savedPath ? `Backup saved: ${savedPath}` : "Backup cancelled.");
+    } catch (error) {
+      setBackupFeedback(error instanceof Error ? error.message : "Backup failed.");
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
+  const restoreBackup = async () => {
+    const shouldRestore = window.confirm(
+      "Restore a backup and replace the current app data? SolidWorks files are not touched."
+    );
+    if (!shouldRestore) return;
+
+    setIsBackupBusy(true);
+    setBackupFeedback(null);
+
+    try {
+      const restored = await restoreDesktopBackup();
+      if (!restored) {
+        setBackupFeedback("Restore cancelled.");
+        return;
+      }
+
+      await saveAppState(restored.state);
+      replaceState(restored.state);
+      setBackupFeedback(`Restored: ${restored.path}`);
+    } catch (error) {
+      setBackupFeedback(error instanceof Error ? error.message : "Restore failed.");
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -140,6 +184,36 @@ function App() {
             </div>
           </label>
           {storageError && <p className="helper-text error-text">{storageError}</p>}
+          {desktopApp && (
+            <>
+              <div className="backup-actions">
+                <button
+                  className="secondary-btn"
+                  disabled={isBackupBusy}
+                  onClick={() => void createBackup()}
+                  type="button"
+                >
+                  {isBackupBusy ? "Working..." : "Create Backup"}
+                </button>
+                <button
+                  className="secondary-btn"
+                  disabled={isBackupBusy}
+                  onClick={() => void restoreBackup()}
+                  type="button"
+                >
+                  Restore Backup
+                </button>
+              </div>
+              <p className="helper-text">
+                App data only. SolidWorks files on disk are not included.
+              </p>
+              {backupFeedback && (
+                <p className="helper-text mono-hint" title={backupFeedback}>
+                  {backupFeedback}
+                </p>
+              )}
+            </>
+          )}
         </section>
 
         <section className="panel">

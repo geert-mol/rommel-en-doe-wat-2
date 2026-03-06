@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld("rndDesktop", {
     pickDirectory: (initialPath?: string) =>
       ipcRenderer.invoke("dialog:pick-directory", initialPath)
   },
+  backup: {
+    save: (payload: { content: string; suggestedFileName?: string }) =>
+      ipcRenderer.invoke("backup:save", payload),
+    load: () => ipcRenderer.invoke("backup:load")
+  },
   export: {
     projectExcel: (payload: unknown) => ipcRenderer.invoke("export:project-excel", payload)
   },

@@ -361,6 +361,12 @@ export const useAppStore = () => {
   const addProduct = (projectId: string, productId: string, name: string) =>
     dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name } });
 
+  const replaceState = (nextState: AppState) => {
+    skipNextPersist.current = true;
+    dispatch({ type: "LOAD", payload: nextState });
+    setStorageError(null);
+  };
+
   return {
     state,
     selectedProject,
@@ -371,6 +377,7 @@ export const useAppStore = () => {
     storageMode: isDesktopApp() ? "sqlite" : "browser",
     dispatch,
     addProject,
-    addProduct
+    addProduct,
+    replaceState
   };
 };

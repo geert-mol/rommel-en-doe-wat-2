@@ -1,11 +1,18 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getStateDatabasePath, loadState, saveState } from "./db.cjs";
 import { writeProjectExportWorkbook } from "./exporter.cjs";
 import { getLogFilePath, logError, logInfo } from "./logger.cjs";
 
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
+
+const backupExtensions = ["rndbackup", "json"];
+
+const buildBackupFileName = (): string =>
+  `rommel-en-doe-wat-backup-${new Date().toISOString().slice(0, 10)}.rndbackup`;
+
 const resolveWindowIconPath = (): string | undefined => {
   const candidatePaths = app.isPackaged
     ? [path.join(process.resourcesPath, "icon.ico")]
@@ -85,6 +92,45 @@ const registerIpcHandlers = () => {
     });
 
     return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("backup:save", async (_event, payload) => {
+    const backupPayload = payload as {
+      content: string;
+      suggestedFileName?: string;
+    };
+    const result = await dialog.showSaveDialog({
+      title: "Create app backup",
+      defaultPath: backupPayload.suggestedFileName?.trim() || buildBackupFileName(),
+      filters: [{ name: "Rommel backup", extensions: backupExtensions }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    await writeFile(result.filePath, backupPayload.content, "utf8");
+    logInfo("App backup saved.", { path: result.filePath });
+    return result.filePath;
+  });
+  ipcMain.handle("backup:load", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Restore app backup",
+      properties: ["openFile"],
+      filters: [{ name: "Rommel backup", extensions: backupExtensions }]
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+
+    const filePath = result.filePaths[0];
+    if (!filePath) {
+      return null;
+    }
+
+    const content = await readFile(filePath, "utf8");
+    logInfo("App backup loaded.", { path: filePath });
+    return { path: filePath, content };
   });
   ipcMain.handle("export:project-excel", async (_event, payload) => {
     const exportPayload = payload as {
