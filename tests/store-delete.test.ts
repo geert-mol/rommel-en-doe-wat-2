@@ -97,7 +97,7 @@ describe("deleteVersionAndCleanup", () => {
     expect(result[0].concepts.map((concept) => concept.id)).toEqual(["c-b"]);
   });
 
-  it("deletes element subtree when last concept/version is removed", () => {
+  it("reparents children to root when parent loses its last concept/version", () => {
     const parent: EngineeringElement = {
       ...baseElement("parent"),
       type: "HA",
@@ -140,12 +140,36 @@ describe("deleteVersionAndCleanup", () => {
       ]
     };
 
-    const result = deleteVersionAndCleanup([parent, child], {
+    const grandchild: EngineeringElement = {
+      ...baseElement("grandchild"),
+      parentElementId: "child",
+      type: "PA",
+      partNumber: "02",
+      concepts: [
+        {
+          id: "c-grandchild",
+          conceptCode: "A",
+          versions: [
+            {
+              id: "v-grandchild",
+              majorVersion: 1,
+              minorVersion: 0,
+              releaseState: "PT",
+              createdAt: "2025-01-01T00:00:00.000Z"
+            }
+          ]
+        }
+      ]
+    };
+
+    const result = deleteVersionAndCleanup([parent, child, grandchild], {
       elementId: "parent",
       conceptId: "c-a",
       versionId: "v-a"
     });
 
-    expect(result).toEqual([]);
+    expect(result.map((element) => element.id)).toEqual(["child", "grandchild"]);
+    expect(result.find((element) => element.id === "child")?.parentElementId).toBeUndefined();
+    expect(result.find((element) => element.id === "grandchild")?.parentElementId).toBe("child");
   });
 });

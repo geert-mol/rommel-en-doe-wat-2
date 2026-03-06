@@ -106,19 +106,11 @@ export const deleteVersionAndCleanup = (
 
   if (removedIds.size === 0) return updated;
 
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const element of updated) {
-      if (!element.parentElementId) continue;
-      if (removedIds.has(element.parentElementId) && !removedIds.has(element.id)) {
-        removedIds.add(element.id);
-        changed = true;
-      }
-    }
-  }
-
-  return updated.filter((element) => !removedIds.has(element.id));
+  return updated.map((element) =>
+    element.parentElementId && removedIds.has(element.parentElementId)
+      ? { ...element, parentElementId: undefined }
+      : element
+  );
 };
 
 export const setElementParent = (
