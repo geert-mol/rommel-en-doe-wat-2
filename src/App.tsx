@@ -6,6 +6,16 @@ import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types"
 
 const parentCapable = new Set<ElementType>(["HA", "SA", "MM"]);
 
+const nextPartNumberForProduct = (partNumbers: string[]): string => {
+  const maxValue = partNumbers.reduce((max, partNumber) => {
+    const parsed = Number.parseInt(partNumber, 10);
+    if (Number.isNaN(parsed)) return max;
+    return Math.max(max, parsed);
+  }, -1);
+
+  return String(maxValue + 1).padStart(2, "0");
+};
+
 function App() {
   const { state, selectedProject, selectedProduct, selectedElements, dispatch, addProject, addProduct } =
     useAppStore();
@@ -22,9 +32,12 @@ function App() {
   const [elementForm, setElementForm] = useState({
     parentElementId: "",
     elementType: "HA" as ElementType,
-    partNumber: "00",
     description: ""
   });
+  const [partNumberDraft, setPartNumberDraft] = useState<{
+    productId?: string;
+    value: string;
+  }>({ value: "" });
 
   const productsForSelectedProject = useMemo(
     () => state.products.filter((product) => product.projectId === selectedProject?.id),
@@ -35,6 +48,14 @@ function App() {
     () => selectedElements.filter((element) => parentCapable.has(element.type)),
     [selectedElements]
   );
+  const suggestedPartNumber = useMemo(
+    () => nextPartNumberForProduct(selectedElements.map((element) => element.partNumber)),
+    [selectedElements]
+  );
+  const currentPartNumber =
+    partNumberDraft.productId === selectedProduct?.id && partNumberDraft.value.length > 0
+      ? partNumberDraft.value
+      : suggestedPartNumber;
 
   const canCreateChild = elementForm.parentElementId.length === 0 || parentCandidates.length > 0;
   const setReleaseState = (
@@ -208,15 +229,18 @@ function App() {
                       productId: selectedProduct.id,
                       parentElementId: elementForm.parentElementId || undefined,
                       elementType: elementForm.elementType,
-                      partNumber: elementForm.partNumber,
+                      partNumber: currentPartNumber,
                       description: elementForm.description
                     }
                   });
                   setElementForm((prev) => ({
                     ...prev,
-                    description: "",
-                    partNumber: String(Number(prev.partNumber || "0") + 1).padStart(2, "0")
+                    description: ""
                   }));
+                  setPartNumberDraft({
+                    productId: selectedProduct.id,
+                    value: String(Number(currentPartNumber || "0") + 1).padStart(2, "0")
+                  });
                 }}
               >
                 <label>
@@ -256,9 +280,12 @@ function App() {
                 <label>
                   Part number
                   <input
-                    value={elementForm.partNumber}
+                    value={currentPartNumber}
                     onChange={(event) =>
-                      setElementForm((prev) => ({ ...prev, partNumber: event.target.value }))
+                      setPartNumberDraft({
+                        productId: selectedProduct?.id,
+                        value: event.target.value
+                      })
                     }
                     placeholder="00"
                   />
