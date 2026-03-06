@@ -9,6 +9,20 @@ export const createInitialAppState = (): AppState => ({
   elements: []
 });
 
+const sanitizeElementParents = (elements: AppState["elements"]): AppState["elements"] => {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+
+  return elements.map((element) => ({
+    ...element,
+    parentElementIds: [...new Set(element.parentElementIds)].filter((parentId) => {
+      if (parentId === element.id) return false;
+      const parent = byId.get(parentId);
+      if (!parent) return false;
+      return parent.projectId === element.projectId && parent.productId === element.productId;
+    })
+  }));
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -130,13 +144,15 @@ export const parseAppState = (value: unknown): AppState | null => {
   if (value.selectedProjectId !== undefined && typeof value.selectedProjectId !== "string") return null;
   if (value.selectedProductId !== undefined && typeof value.selectedProductId !== "string") return null;
 
+  const sanitizedElements = sanitizeElementParents(elements as AppState["elements"]);
+
   return {
     settings: {
       defaultRootPath: value.settings.defaultRootPath
     },
     projects,
     products,
-    elements,
+    elements: sanitizedElements,
     selectedProjectId: value.selectedProjectId,
     selectedProductId: value.selectedProductId
   };

@@ -58,6 +58,15 @@ describe("parseAppState", () => {
         products: [],
         elements: [
           {
+            id: "parent-1",
+            projectId: "project-1",
+            productId: "product-1",
+            type: "HA",
+            partNumber: "00",
+            descriptionSlug: "root",
+            concepts: []
+          },
+          {
             id: "element-1",
             projectId: "project-1",
             productId: "product-1",
@@ -75,6 +84,16 @@ describe("parseAppState", () => {
       products: [],
       elements: [
         {
+          id: "parent-1",
+          projectId: "project-1",
+          productId: "product-1",
+          parentElementIds: [],
+          type: "HA",
+          partNumber: "00",
+          descriptionSlug: "root",
+          concepts: []
+        },
+        {
           id: "element-1",
           projectId: "project-1",
           productId: "product-1",
@@ -82,6 +101,64 @@ describe("parseAppState", () => {
           type: "PA",
           partNumber: "01",
           descriptionSlug: "bracket",
+          concepts: []
+        }
+      ]
+    });
+  });
+
+  it("drops invalid parent references while parsing", () => {
+    expect(
+      parseAppState({
+        settings: { defaultRootPath: "C:/Engineering" },
+        projects: [],
+        products: [],
+        elements: [
+          {
+            id: "parent-1",
+            projectId: "project-1",
+            productId: "product-1",
+            parentElementIds: [],
+            type: "HA",
+            partNumber: "00",
+            descriptionSlug: "root",
+            concepts: []
+          },
+          {
+            id: "child-1",
+            projectId: "project-1",
+            productId: "product-1",
+            parentElementIds: ["parent-1", "missing-parent"],
+            type: "PA",
+            partNumber: "01",
+            descriptionSlug: "child",
+            concepts: []
+          }
+        ]
+      })
+    ).toEqual({
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [],
+      products: [],
+      elements: [
+        {
+          id: "parent-1",
+          projectId: "project-1",
+          productId: "product-1",
+          parentElementIds: [],
+          type: "HA",
+          partNumber: "00",
+          descriptionSlug: "root",
+          concepts: []
+        },
+        {
+          id: "child-1",
+          projectId: "project-1",
+          productId: "product-1",
+          parentElementIds: ["parent-1"],
+          type: "PA",
+          partNumber: "01",
+          descriptionSlug: "child",
           concepts: []
         }
       ]

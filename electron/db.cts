@@ -118,6 +118,20 @@ const createInitialState = (): AppState => ({
   elements: []
 });
 
+const sanitizeElementParents = (elements: EngineeringElement[]): EngineeringElement[] => {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+
+  return elements.map((element) => ({
+    ...element,
+    parentElementIds: [...new Set(element.parentElementIds)].filter((parentId) => {
+      if (parentId === element.id) return false;
+      const parent = byId.get(parentId);
+      if (!parent) return false;
+      return parent.projectId === element.projectId && parent.productId === element.productId;
+    })
+  }));
+};
+
 const databaseFileName = "rnd-pdm.sqlite";
 let database: Database.Database | null = null;
 
@@ -247,8 +261,10 @@ const getDatabase = (): Database.Database => {
   return database;
 };
 
-  const saveStateTxn = (db: Database.Database) =>
+const saveStateTxn = (db: Database.Database) =>
   db.transaction((state: AppState) => {
+    const sanitizedElements = sanitizeElementParents(state.elements);
+
     db.prepare("DELETE FROM versions").run();
     db.prepare("DELETE FROM concepts").run();
     db.prepare("DELETE FROM element_parent_links").run();
@@ -356,7 +372,7 @@ const getDatabase = (): Database.Database => {
       });
     }
 
-    for (const element of state.elements) {
+    for (const element of sanitizedElements) {
       elementStatement.run({
         id: element.id,
         project_ref: element.projectId,
@@ -366,14 +382,20 @@ const getDatabase = (): Database.Database => {
         part_number: element.partNumber,
         description_slug: element.descriptionSlug
       });
+    }
 
+    // Insert links only after every element row exists, otherwise a child can reference
+    // a valid parent that simply appears later in the save order.
+    for (const element of sanitizedElements) {
       for (const parentElementId of element.parentElementIds) {
         parentLinkStatement.run({
           element_ref: element.id,
           parent_element_ref: parentElementId
         });
       }
+    }
 
+    for (const element of sanitizedElements) {
       for (const concept of element.concepts) {
         conceptStatement.run({
           id: concept.id,
@@ -505,7 +527,7 @@ export const loadState = (): AppState => {
       productId: product.product_code,
       name: product.name
     })),
-    elements: elements.map((element) => ({
+    elements: sanitizeElementParents(elements.map((element) => ({
       id: element.id,
       projectId: element.project_ref,
       productId: element.product_ref,
@@ -514,7 +536,7 @@ export const loadState = (): AppState => {
       partNumber: element.part_number,
       descriptionSlug: element.description_slug,
       concepts: conceptsByElementId.get(element.id) ?? []
-    })),
+    }))),
     selectedProjectId: meta.get("selectedProjectId") || undefined,
     selectedProductId: meta.get("selectedProductId") || undefined
   };
