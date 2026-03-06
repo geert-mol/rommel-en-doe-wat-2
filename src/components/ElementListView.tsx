@@ -106,6 +106,7 @@ const GRAPH_PAD = 9;
 const ROW_HEIGHT = 26;
 const ROW_HALF = ROW_HEIGHT / 2;
 const STROKE_OVERLAP = 2.5;
+const DUPLICATE_TRACE_GUTTER = 22;
 
 const laneColor = (lane: number): string => LANE_COLORS[lane % LANE_COLORS.length];
 
@@ -254,7 +255,8 @@ const BranchGraphCell = ({
   duplicateRowIndices: number[];
   showDuplicateTrace: boolean;
 }) => {
-  const width = (maxDepth + 1) * LANE_STEP + GRAPH_PAD * 2;
+  const baseWidth = (maxDepth + 1) * LANE_STEP + GRAPH_PAD * 2;
+  const width = baseWidth + DUPLICATE_TRACE_GUTTER;
   const x = xForLane(row.depth);
   const color = laneColor(row.depth);
   const isPrimaryConcept = row.conceptIndex === 0;
@@ -272,7 +274,7 @@ const BranchGraphCell = ({
   const nodeStrokeWidth = isLargeNode ? 2.2 : 1.3;
   const firstDuplicateRow = duplicateRowIndices[0] ?? row.rowIndex;
   const lastDuplicateRow = duplicateRowIndices[duplicateRowIndices.length - 1] ?? row.rowIndex;
-  const duplicateTraceX = width - 5;
+  const duplicateTraceX = width - 8;
   const showDuplicateStub = showDuplicateTrace && duplicateRowIndices.includes(row.rowIndex);
   const showDuplicateSpine =
     showDuplicateTrace &&
@@ -325,9 +327,9 @@ const BranchGraphCell = ({
 
         {showDuplicateStub ? (
           <line
-            x1={duplicateTraceX - 10}
+            x1={duplicateTraceX}
             y1={ROW_HALF}
-            x2={duplicateTraceX}
+            x2={width - 1}
             y2={ROW_HALF}
             stroke="#7f8b6c"
             strokeWidth={2}

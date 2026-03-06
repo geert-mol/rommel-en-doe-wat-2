@@ -598,7 +598,7 @@ button:hover {
 
 .branch-cell {
   padding: 0 !important;
-  min-width: 96px;
+  min-width: 118px;
   border-top: 0 !important;
   border-bottom: 0 !important;
   border-left: 0 !important;
@@ -607,7 +607,7 @@ button:hover {
 }
 
 .branch-head {
-  min-width: 96px;
+  min-width: 118px;
   border-left: 0 !important;
   border-right: 1px solid #d8ceb7 !important;
 }
