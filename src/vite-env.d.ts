@@ -14,6 +14,11 @@ interface DesktopBridge {
   dialog: {
     pickDirectory: (initialPath?: string) => Promise<string | null>;
   };
+  export: {
+    projectExcel: (
+      payload: import("./lib/export").ProjectExportPayload
+    ) => Promise<string | null>;
+  };
   log: {
     location: () => Promise<string>;
     error: (message: string, details?: string) => void;

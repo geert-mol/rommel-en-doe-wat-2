@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { getStateDatabasePath, loadState, saveState } from "./db.cjs";
+import { writeProjectExportWorkbook } from "./exporter.cjs";
 import { getLogFilePath, logError, logInfo } from "./logger.cjs";
 
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
@@ -88,6 +89,34 @@ const registerIpcHandlers = () => {
     });
 
     return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("export:project-excel", async (_event, payload) => {
+    const exportPayload = payload as {
+      projectCode: string;
+      projectName: string;
+      generatedAt: string;
+      sheets: Array<{ productCode: string; productName: string; rows: unknown[] }>;
+    };
+    const result = await dialog.showSaveDialog({
+      title: "Export project to Excel",
+      defaultPath: `${exportPayload.projectCode}-${exportPayload.projectName}.xlsx`,
+      filters: [{ name: "Excel workbook", extensions: ["xlsx"] }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    await writeProjectExportWorkbook(
+      payload as Parameters<typeof writeProjectExportWorkbook>[0],
+      result.filePath
+    );
+    logInfo("Project Excel export created.", {
+      path: result.filePath,
+      projectCode: exportPayload.projectCode,
+      sheets: exportPayload.sheets.length
+    });
+    return result.filePath;
   });
   ipcMain.handle("shell:open-path", async (_event, targetPath: string) => {
     const fallbackDirectory = normalizeDirectoryChoice(targetPath);

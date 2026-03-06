@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ElementListView } from "./components/ElementListView";
+import { exportProjectExcel } from "./lib/desktop-export";
+import { buildProjectExportPayload } from "./lib/export";
 import { getStorageLocation, isDesktopApp, pickDirectory } from "./lib/desktop";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
@@ -31,6 +33,8 @@ function App() {
     addProduct
   } = useAppStore();
   const [storageLocation, setStorageLocation] = useState<string | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
@@ -108,6 +112,21 @@ function App() {
     const selectedPath = await pickDirectory(projectForm.rootPath || state.settings.defaultRootPath);
     if (!selectedPath) return;
     setProjectForm((prev) => ({ ...prev, rootPath: selectedPath }));
+  };
+
+  const exportSelectedProject = async () => {
+    if (!selectedProject) return;
+
+    const payload = buildProjectExportPayload(state, selectedProject.id);
+    if (!payload) {
+      setExportFeedback("Project export failed.");
+      return;
+    }
+
+    setIsExporting(true);
+    const savedPath = await exportProjectExcel(payload);
+    setIsExporting(false);
+    setExportFeedback(savedPath ? `Exported: ${savedPath}` : "Export cancelled.");
   };
 
   return (
@@ -206,6 +225,23 @@ function App() {
               </li>
             ))}
           </ul>
+          {desktopApp && selectedProject && (
+            <>
+              <button
+                className="project-export-btn"
+                disabled={isExporting}
+                onClick={() => void exportSelectedProject()}
+                type="button"
+              >
+                {isExporting ? "Exporting..." : "Export Project Excel"}
+              </button>
+              {exportFeedback && (
+                <p className="helper-text mono-hint" title={exportFeedback}>
+                  {exportFeedback}
+                </p>
+              )}
+            </>
+          )}
         </section>
 
         <section className="panel">
@@ -373,7 +409,7 @@ function App() {
             </section>
 
             <section className="panel">
-              <h2>Engineering list (latest only)</h2>
+              <h2>Engineering list</h2>
               <ElementListView
                 elements={selectedElements}
                 project={selectedProject}

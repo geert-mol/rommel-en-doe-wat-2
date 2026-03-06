@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("rndDesktop", {
     pickDirectory: (initialPath?: string) =>
       ipcRenderer.invoke("dialog:pick-directory", initialPath)
   },
+  export: {
+    projectExcel: (payload: unknown) => ipcRenderer.invoke("export:project-excel", payload)
+  },
   log: {
     location: () => ipcRenderer.invoke("log:location"),
     error: (message: string, details?: string) =>
