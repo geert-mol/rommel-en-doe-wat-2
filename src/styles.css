@@ -663,6 +663,10 @@ button:hover {
   display: block;
 }
 
+.branch-graph {
+  display: flex;
+}
+
 .branch-svg {
   overflow: visible;
 }

@@ -283,7 +283,10 @@ const BranchGraphCell = ({
     firstDuplicateRow !== lastDuplicateRow;
 
   return (
-    <div className="branch-graph" style={{ width, height: ROW_HEIGHT }}>
+    <div
+      className="branch-graph"
+      style={{ minWidth: width, width: "100%", height: ROW_HEIGHT, justifyContent: "flex-end" }}
+    >
       <svg className="branch-svg" width={width} height={ROW_HEIGHT} viewBox={`0 0 ${width} ${ROW_HEIGHT}`}>
         {segments.map((segment, index) =>
           segment.kind === "line" ? (
