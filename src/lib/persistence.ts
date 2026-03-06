@@ -1,4 +1,12 @@
-import { ELEMENT_TYPES, RELEASE_STATES, type AppState, type ElementType, type ReleaseState } from "./types";
+import {
+  ELEMENT_TYPES,
+  RELEASE_STATES,
+  VERSION_EXPORT_KINDS,
+  type AppState,
+  type ElementType,
+  type ReleaseState,
+  type VersionExports
+} from "./types";
 
 export const STORAGE_KEY = "rnd-pdm-state-v1";
 
@@ -31,6 +39,18 @@ const isReleaseState = (value: unknown): value is ReleaseState =>
 
 const isElementType = (value: unknown): value is ElementType =>
   typeof value === "string" && ELEMENT_TYPES.includes(value as ElementType);
+
+const normalizeVersionExports = (value: unknown): VersionExports | undefined => {
+  if (!isRecord(value)) return undefined;
+
+  const enabledEntries = VERSION_EXPORT_KINDS.filter((kind) => value[kind] === true).map((kind) => [
+    kind,
+    true
+  ]);
+
+  if (enabledEntries.length === 0) return undefined;
+  return Object.fromEntries(enabledEntries) as VersionExports;
+};
 
 export const parseAppState = (value: unknown): AppState | null => {
   if (!isRecord(value)) return null;
@@ -104,13 +124,15 @@ export const parseAppState = (value: unknown): AppState | null => {
         if (typeof version.minorVersion !== "number") return null;
         if (!isReleaseState(version.releaseState)) return null;
         if (typeof version.createdAt !== "string") return null;
+        const availableExports = normalizeVersionExports(version.availableExports);
 
         return {
           id: version.id,
           majorVersion: version.majorVersion,
           minorVersion: version.minorVersion,
           releaseState: version.releaseState,
-          createdAt: version.createdAt
+          createdAt: version.createdAt,
+          ...(availableExports ? { availableExports } : {})
         };
       });
 

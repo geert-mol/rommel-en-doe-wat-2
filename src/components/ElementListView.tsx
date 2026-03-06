@@ -11,7 +11,8 @@ import type {
   EngineeringElement,
   Product,
   Project,
-  ReleaseState
+  ReleaseState,
+  VersionExportKind
 } from "../lib/types";
 import { RELEASE_STATES } from "../lib/types";
 import { byVersionDesc, latestVersion } from "../lib/versioning";
@@ -25,6 +26,13 @@ interface ElementListViewProps {
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onDeleteVersion: (elementId: string, conceptId: string, versionId: string) => void;
   onSetElementParents: (elementId: string, parentElementIds: string[]) => void;
+  onSetVersionExport: (
+    elementId: string,
+    conceptId: string,
+    versionId: string,
+    exportKind: VersionExportKind,
+    enabled: boolean
+  ) => void;
   onSetReleaseState: (
     elementId: string,
     conceptId: string,
@@ -64,6 +72,18 @@ interface ParentEditState {
 interface HistoryState {
   elementId: string;
   conceptId: string;
+}
+
+interface HistoryRow {
+  conceptId: string;
+  versionId: string;
+  conceptCode: string;
+  versionLabel: string;
+  releaseState: ReleaseState;
+  createdAt: string;
+  fileName: string;
+  realPath: string;
+  availableExports?: Partial<Record<VersionExportKind, true>>;
 }
 
 interface MenuItem {
@@ -135,11 +155,58 @@ const ChevronDownIcon = () => (
   </svg>
 );
 
+const PlusIcon = () => (
+  <svg aria-hidden="true" className="copy-icon" viewBox="0 0 16 16">
+    <path d="M8 3.5v9M3.5 8h9" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg aria-hidden="true" className="copy-icon" viewBox="0 0 16 16">
+    <path d="m4.5 4.5 7 7m0-7-7 7" />
+  </svg>
+);
+
+const HISTORY_EXPORT_FIELDS: Array<{
+  kind: VersionExportKind;
+  label: string;
+  extensions: string[];
+}> = [
+  { kind: "solidworksDrawing", label: "SW drawing", extensions: [".slddrw"] },
+  { kind: "step", label: "STEP", extensions: [".stp", ".step"] },
+  { kind: "drawing", label: "Drawing", extensions: [".pdf"] },
+  { kind: "sheetMetal", label: "Sheet metal", extensions: [".dxf"] },
+  { kind: "stl", label: "STL", extensions: [".STL"] }
+];
+
+const replaceFileExtension = (targetPath: string, extension: string): string => {
+  const lastSlash = Math.max(targetPath.lastIndexOf("/"), targetPath.lastIndexOf("\\"));
+  const lastDot = targetPath.lastIndexOf(".");
+
+  if (lastDot > lastSlash) {
+    return `${targetPath.slice(0, lastDot)}${extension}`;
+  }
+
+  return `${targetPath}${extension}`;
+};
+
 const openPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didOpen = await openFilePath(targetPath);
   if (didOpen) return;
 
   await copyToClipboard(targetPath);
+  window.alert("File not found. Full path copied to clipboard.");
+};
+
+const openFirstAvailablePathWithFeedback = async (targetPaths: string[]): Promise<void> => {
+  for (const targetPath of targetPaths) {
+    const didOpen = await openFilePath(targetPath);
+    if (didOpen) return;
+  }
+
+  const fallbackPath = targetPaths[0];
+  if (!fallbackPath) return;
+  await copyToClipboard(fallbackPath);
   window.alert("File not found. Full path copied to clipboard.");
 };
 
@@ -360,6 +427,7 @@ export const ElementListView = ({
   onAddVersion,
   onDeleteVersion,
   onSetElementParents,
+  onSetVersionExport,
   onSetReleaseState
 }: ElementListViewProps) => {
   const [historyState, setHistoryState] = useState<HistoryState | null>(null);
@@ -467,7 +535,7 @@ export const ElementListView = ({
     [historyElement, historyState?.conceptId]
   );
 
-  const historyRows = useMemo(() => {
+  const historyRows = useMemo<HistoryRow[]>(() => {
     if (!historyElement || !historyConcept) return [];
 
     return [...historyConcept.versions].sort(byVersionDesc).map((version) => {
@@ -491,6 +559,7 @@ export const ElementListView = ({
         releaseState: version.releaseState,
         createdAt: version.createdAt,
         fileName,
+        availableExports: version.availableExports,
         realPath: buildSuggestedFilePath(
           fileName,
           historyElement,
@@ -582,6 +651,15 @@ export const ElementListView = ({
     }, 1200);
   };
 
+  const toggleHistoryExport = (
+    historyRow: HistoryRow,
+    exportKind: VersionExportKind,
+    enabled: boolean
+  ) => {
+    if (!historyElement) return;
+    onSetVersionExport(historyElement.id, historyRow.conceptId, historyRow.versionId, exportKind, enabled);
+  };
+
   const toggleParentSelection = (parentId: string) => {
     setParentEdit((prev) =>
       prev
@@ -620,6 +698,9 @@ export const ElementListView = ({
                 <th>Version</th>
                 <th>State</th>
                 <th>Filename</th>
+                {HISTORY_EXPORT_FIELDS.map((field) => (
+                  <th key={field.kind}>{field.label}</th>
+                ))}
                 <th>Created</th>
                 <th>Actions</th>
               </tr>
@@ -652,6 +733,40 @@ export const ElementListView = ({
                       </button>
                     </div>
                   </td>
+                  {HISTORY_EXPORT_FIELDS.map((field) => {
+                    const isEnabled = historyRow.availableExports?.[field.kind] === true;
+                    const exportPaths = field.extensions.map((extension) =>
+                      replaceFileExtension(historyRow.realPath, extension)
+                    );
+
+                    return (
+                      <td key={field.kind} className={`history-export-cell ${isEnabled ? "is-enabled" : ""}`}>
+                        <div className="history-export-control">
+                          {isEnabled ? (
+                            <button
+                              className="mini-btn history-export-open"
+                              onClick={() => void openFirstAvailablePathWithFeedback(exportPaths)}
+                              type="button"
+                            >
+                              Open
+                            </button>
+                          ) : null}
+                          <button
+                            aria-label={isEnabled ? `Remove ${field.label}` : `Enable ${field.label}`}
+                            className={
+                              isEnabled
+                                ? "history-export-icon history-export-remove"
+                                : "history-export-icon history-export-add"
+                            }
+                            onClick={() => toggleHistoryExport(historyRow, field.kind, !isEnabled)}
+                            type="button"
+                          >
+                            {isEnabled ? <CloseIcon /> : <PlusIcon />}
+                          </button>
+                        </div>
+                      </td>
+                    );
+                  })}
                   <td>{new Date(historyRow.createdAt).toLocaleDateString()}</td>
                   <td>
                     <div className="dense-actions">

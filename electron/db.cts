@@ -30,6 +30,9 @@ interface ElementVersion {
   minorVersion: number;
   releaseState: ReleaseState;
   createdAt: string;
+  availableExports?: Partial<
+    Record<"solidworksDrawing" | "step" | "drawing" | "sheetMetal" | "stl", true>
+  >;
 }
 
 interface ElementConcept {
@@ -100,6 +103,11 @@ interface VersionRow {
   minor_version: number;
   release_state: ReleaseState;
   created_at: string;
+  has_solidworks_drawing: number;
+  has_step: number;
+  has_drawing: number;
+  has_sheet_metal: number;
+  has_stl: number;
 }
 
 interface SettingsRow {
@@ -130,6 +138,23 @@ const sanitizeElementParents = (elements: EngineeringElement[]): EngineeringElem
       return parent.projectId === element.projectId && parent.productId === element.productId;
     })
   }));
+};
+
+const getVersionExportState = (
+  versionRow: Pick<
+    VersionRow,
+    "has_solidworks_drawing" | "has_step" | "has_drawing" | "has_sheet_metal" | "has_stl"
+  >
+): ElementVersion["availableExports"] => {
+  const availableExports: NonNullable<ElementVersion["availableExports"]> = {};
+
+  if (versionRow.has_solidworks_drawing) availableExports.solidworksDrawing = true;
+  if (versionRow.has_step) availableExports.step = true;
+  if (versionRow.has_drawing) availableExports.drawing = true;
+  if (versionRow.has_sheet_metal) availableExports.sheetMetal = true;
+  if (versionRow.has_stl) availableExports.stl = true;
+
+  return Object.keys(availableExports).length > 0 ? availableExports : undefined;
 };
 
 const databaseFileName = "rnd-pdm.sqlite";
@@ -208,6 +233,11 @@ const getDatabase = (): Database.Database => {
       minor_version INTEGER NOT NULL,
       release_state TEXT NOT NULL,
       created_at TEXT NOT NULL,
+      has_solidworks_drawing INTEGER NOT NULL DEFAULT 0,
+      has_step INTEGER NOT NULL DEFAULT 0,
+      has_drawing INTEGER NOT NULL DEFAULT 0,
+      has_sheet_metal INTEGER NOT NULL DEFAULT 0,
+      has_stl INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (concept_ref) REFERENCES concepts(id) ON DELETE CASCADE
     );
 
@@ -218,6 +248,23 @@ const getDatabase = (): Database.Database => {
     CREATE INDEX IF NOT EXISTS idx_concepts_element_ref ON concepts(element_ref);
     CREATE INDEX IF NOT EXISTS idx_versions_concept_ref ON versions(concept_ref);
   `);
+
+  const versionColumns = new Set(
+    (database.prepare("PRAGMA table_info(versions)").all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
+  const missingVersionColumns = [
+    ["has_solidworks_drawing", "INTEGER NOT NULL DEFAULT 0"],
+    ["has_step", "INTEGER NOT NULL DEFAULT 0"],
+    ["has_drawing", "INTEGER NOT NULL DEFAULT 0"],
+    ["has_sheet_metal", "INTEGER NOT NULL DEFAULT 0"],
+    ["has_stl", "INTEGER NOT NULL DEFAULT 0"]
+  ].filter(([columnName]) => !versionColumns.has(columnName));
+
+  for (const [columnName, columnDefinition] of missingVersionColumns) {
+    database.exec(`ALTER TABLE versions ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
 
   const parentLinkCount = (
     database
@@ -334,7 +381,12 @@ const saveStateTxn = (db: Database.Database) =>
           major_version,
           minor_version,
           release_state,
-          created_at
+          created_at,
+          has_solidworks_drawing,
+          has_step,
+          has_drawing,
+          has_sheet_metal,
+          has_stl
         )
         VALUES (
           @id,
@@ -342,7 +394,12 @@ const saveStateTxn = (db: Database.Database) =>
           @major_version,
           @minor_version,
           @release_state,
-          @created_at
+          @created_at,
+          @has_solidworks_drawing,
+          @has_step,
+          @has_drawing,
+          @has_sheet_metal,
+          @has_stl
         )
       `
     );
@@ -410,7 +467,12 @@ const saveStateTxn = (db: Database.Database) =>
             major_version: version.majorVersion,
             minor_version: version.minorVersion,
             release_state: version.releaseState,
-            created_at: version.createdAt
+            created_at: version.createdAt,
+            has_solidworks_drawing: version.availableExports?.solidworksDrawing ? 1 : 0,
+            has_step: version.availableExports?.step ? 1 : 0,
+            has_drawing: version.availableExports?.drawing ? 1 : 0,
+            has_sheet_metal: version.availableExports?.sheetMetal ? 1 : 0,
+            has_stl: version.availableExports?.stl ? 1 : 0
           });
         }
       }
@@ -471,7 +533,12 @@ export const loadState = (): AppState => {
           major_version,
           minor_version,
           release_state,
-          created_at
+          created_at,
+          has_solidworks_drawing,
+          has_step,
+          has_drawing,
+          has_sheet_metal,
+          has_stl
         FROM versions
         ORDER BY major_version DESC, minor_version DESC, created_at DESC
       `
@@ -488,7 +555,8 @@ export const loadState = (): AppState => {
       majorVersion: version.major_version,
       minorVersion: version.minor_version,
       releaseState: version.release_state,
-      createdAt: version.created_at
+      createdAt: version.created_at,
+      availableExports: getVersionExportState(version)
     });
     versionsByConceptId.set(version.concept_ref, bucket);
   }

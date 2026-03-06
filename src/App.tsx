@@ -763,6 +763,12 @@ function App() {
                   onSetElementParents={(elementId, parentElementIds) =>
                     dispatch({ type: "SET_ELEMENT_PARENT", payload: { elementId, parentElementIds } })
                   }
+                  onSetVersionExport={(elementId, conceptId, versionId, exportKind, enabled) =>
+                    dispatch({
+                      type: "SET_VERSION_EXPORT",
+                      payload: { elementId, conceptId, versionId, exportKind, enabled }
+                    })
+                  }
                   onSetReleaseState={setReleaseState}
                 />
               </section>

@@ -13,7 +13,8 @@ import type {
   ElementType,
   Product,
   Project,
-  ReleaseState
+  ReleaseState,
+  VersionExportKind
 } from "./types";
 import { nextConceptCode, nextVersion } from "./versioning";
 
@@ -28,6 +29,14 @@ interface DeleteVersionPayload {
 interface SetElementParentPayload {
   elementId: string;
   parentElementIds: string[];
+}
+
+interface SetVersionExportPayload {
+  elementId: string;
+  conceptId: string;
+  versionId: string;
+  exportKind: VersionExportKind;
+  enabled: boolean;
 }
 
 interface DeleteProjectPayload {
@@ -64,6 +73,7 @@ type Action =
       type: "SET_RELEASE_STATE";
       payload: { elementId: string; conceptId: string; versionId: string; releaseState: ReleaseState };
     }
+  | { type: "SET_VERSION_EXPORT"; payload: SetVersionExportPayload }
   | { type: "DELETE_VERSION"; payload: DeleteVersionPayload }
   | { type: "SET_ELEMENT_PARENT"; payload: SetElementParentPayload };
 
@@ -166,6 +176,42 @@ export const setElementParents = (
     element.id === elementId ? { ...element, parentElementIds: nextParentIds } : element
   );
 };
+
+export const setVersionExportAvailability = (
+  elements: EngineeringElement[],
+  payload: SetVersionExportPayload
+): EngineeringElement[] =>
+  elements.map((element) => {
+    if (element.id !== payload.elementId) return element;
+
+    return {
+      ...element,
+      concepts: element.concepts.map((concept) => {
+        if (concept.id !== payload.conceptId) return concept;
+
+        return {
+          ...concept,
+          versions: concept.versions.map((version) => {
+            if (version.id !== payload.versionId) return version;
+
+            const currentExports = version.availableExports ?? {};
+            const nextExports = { ...currentExports };
+
+            if (payload.enabled) {
+              nextExports[payload.exportKind] = true;
+            } else {
+              delete nextExports[payload.exportKind];
+            }
+
+            return {
+              ...version,
+              availableExports: Object.keys(nextExports).length > 0 ? nextExports : undefined
+            };
+          })
+        };
+      })
+    };
+  });
 
 export const deleteProjectAndCleanup = (
   state: AppState,
@@ -349,6 +395,11 @@ const reducer = (state: AppState, action: Action): AppState => {
             })
           };
         })
+      };
+    case "SET_VERSION_EXPORT":
+      return {
+        ...state,
+        elements: setVersionExportAvailability(state.elements, action.payload)
       };
     case "DELETE_VERSION":
       return {

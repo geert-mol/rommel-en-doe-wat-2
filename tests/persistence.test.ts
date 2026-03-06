@@ -164,4 +164,94 @@ describe("parseAppState", () => {
       ]
     });
   });
+
+  it("keeps valid version export flags and defaults missing ones to empty", () => {
+    expect(
+      parseAppState({
+        settings: { defaultRootPath: "C:/Engineering" },
+        projects: [],
+        products: [],
+        elements: [
+          {
+            id: "element-1",
+            projectId: "project-1",
+            productId: "product-1",
+            parentElementIds: [],
+            type: "HA",
+            partNumber: "00",
+            descriptionSlug: "root",
+            concepts: [
+              {
+                id: "concept-1",
+                conceptCode: "A",
+                versions: [
+                  {
+                    id: "version-1",
+                    majorVersion: 1,
+                    minorVersion: 0,
+                    releaseState: "PT",
+                    createdAt: "2026-03-06T09:00:00.000Z",
+                    availableExports: {
+                      solidworksDrawing: true,
+                      step: false,
+                      drawing: true
+                    }
+                  },
+                  {
+                    id: "version-2",
+                    majorVersion: 2,
+                    minorVersion: 0,
+                    releaseState: "PT",
+                    createdAt: "2026-03-07T09:00:00.000Z"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    ).toEqual({
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [],
+      products: [],
+      elements: [
+        {
+          id: "element-1",
+          projectId: "project-1",
+          productId: "product-1",
+          parentElementIds: [],
+          type: "HA",
+          partNumber: "00",
+          descriptionSlug: "root",
+          concepts: [
+            {
+              id: "concept-1",
+              conceptCode: "A",
+              versions: [
+                {
+                  id: "version-1",
+                  majorVersion: 1,
+                  minorVersion: 0,
+                  releaseState: "PT",
+                  createdAt: "2026-03-06T09:00:00.000Z",
+                  availableExports: {
+                    solidworksDrawing: true,
+                    drawing: true
+                  }
+                },
+                {
+                  id: "version-2",
+                  majorVersion: 2,
+                  minorVersion: 0,
+                  releaseState: "PT",
+                  createdAt: "2026-03-07T09:00:00.000Z",
+                  availableExports: undefined
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+  });
 });

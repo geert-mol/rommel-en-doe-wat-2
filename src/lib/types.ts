@@ -4,6 +4,16 @@ export type ReleaseState = (typeof RELEASE_STATES)[number];
 export const ELEMENT_TYPES = ["MM", "HA", "SA", "PA"] as const;
 export type ElementType = (typeof ELEMENT_TYPES)[number];
 
+export const VERSION_EXPORT_KINDS = [
+  "solidworksDrawing",
+  "step",
+  "drawing",
+  "sheetMetal",
+  "stl"
+] as const;
+export type VersionExportKind = (typeof VERSION_EXPORT_KINDS)[number];
+export type VersionExports = Partial<Record<VersionExportKind, true>>;
+
 export type VersionKind = "major" | "minor";
 
 export interface AppSettings {
@@ -30,6 +40,7 @@ export interface ElementVersion {
   minorVersion: number;
   releaseState: ReleaseState;
   createdAt: string;
+  availableExports?: VersionExports;
 }
 
 export interface ElementConcept {

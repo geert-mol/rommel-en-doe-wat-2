@@ -27,7 +27,11 @@ describe("app backups", () => {
                   majorVersion: 1,
                   minorVersion: 0,
                   releaseState: "PT",
-                  createdAt: "2026-03-06T11:00:00.000Z"
+                  createdAt: "2026-03-06T11:00:00.000Z",
+                  availableExports: {
+                    solidworksDrawing: true,
+                    stl: true
+                  }
                 }
               ]
             }
