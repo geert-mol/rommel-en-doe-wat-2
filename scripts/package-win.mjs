@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
@@ -71,6 +71,54 @@ const normalizeWindowsVersion = (version) => {
   return parts.slice(0, 4).join(".");
 };
 
+const quoteYamlString = (value) => JSON.stringify(value);
+
+const serializeYamlValue = (value, indent = "") => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => `${indent}- ${serializeYamlValue(entry, `${indent}  `).trimStart()}`)
+      .join("\n");
+  }
+
+  if (typeof value === "string") {
+    return quoteYamlString(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (value == null) {
+    return "null";
+  }
+
+  throw new Error(`Unsupported YAML value: ${value}`);
+};
+
+const writeAppUpdateConfig = (resourcesDir) => {
+  const publishConfig = packageJson.build?.publish?.[0];
+  if (!publishConfig || typeof publishConfig !== "object") {
+    throw new Error("Missing build.publish[0] config for auto-updates.");
+  }
+
+  const updaterConfig = {
+    ...publishConfig,
+    updaterCacheDirName: `${String(packageJson.name ?? "app").toLowerCase()}-updater`
+  };
+  const yamlLines = Object.entries(updaterConfig).map(([key, value]) => {
+    if (Array.isArray(value)) {
+      return `${key}:\n${serializeYamlValue(value, "  ")}`;
+    }
+    return `${key}: ${serializeYamlValue(value)}`;
+  });
+  const configPath = path.join(resourcesDir, "app-update.yml");
+  writeFileSync(configPath, `${yamlLines.join("\n")}\n`, "utf8");
+
+  if (!existsSync(configPath)) {
+    throw new Error(`Updater config was not created: ${configPath}`);
+  }
+};
+
 const productName = packageJson.build?.productName ?? packageJson.productName ?? packageJson.name;
 const companyName =
   typeof packageJson.author === "string"
@@ -79,6 +127,7 @@ const companyName =
 const version = normalizeWindowsVersion(packageJson.version ?? "0.0.0");
 const iconPath = path.join(repoRoot, "build", "icon.ico");
 const appOutDir = path.join(repoRoot, "release", "win-unpacked");
+const resourcesDir = path.join(appOutDir, "resources");
 const exePath = path.join(appOutDir, `${productName}.exe`);
 const userArgs = process.argv.slice(2);
 const shouldOnlyBuildDir = userArgs.includes("--dir");
@@ -132,6 +181,8 @@ await runRcedit(rceditPath, [
   version
 ]);
 
+writeAppUpdateConfig(resourcesDir);
+
 if (shouldOnlyBuildDir) {
   process.exit(0);
 }
@@ -142,3 +193,8 @@ await run([
   ...targetArgs,
   "-c.win.signAndEditExecutable=false"
 ]);
+
+if (!existsSync(path.join(resourcesDir, "app-update.yml"))) {
+  console.error(`Updater config missing after packaging: ${path.join(resourcesDir, "app-update.yml")}`);
+  process.exit(1);
+}

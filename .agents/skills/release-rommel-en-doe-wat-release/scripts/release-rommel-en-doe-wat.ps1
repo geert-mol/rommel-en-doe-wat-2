@@ -3,16 +3,13 @@ param(
   [switch]$SkipChecks,
   [switch]$SkipBuild,
   [switch]$NoCommit,
-  [string]$TargetPath = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe"
+  [string]$TargetPath = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $AppRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-2"
-$MarketingRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing"
-$DefaultTargetPath = "C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe"
-$TrackedInstallerPath = "downloads/Rommel-en-doe-wat-Setup.exe"
 $RemoteName = "origin"
 $GitHubReleaseRepo = "geert-mol/rommel-en-doe-wat-2"
 $VersionFiles = @("package.json", "package-lock.json")
@@ -158,10 +155,6 @@ if (-not (Test-Path $AppRepo -PathType Container)) {
   throw "App repo not found: $AppRepo"
 }
 
-if (-not (Test-Path $MarketingRepo -PathType Container)) {
-  throw "Marketing repo not found: $MarketingRepo"
-}
-
 $appStatusLines = Get-RepoStatusLines -WorkingDirectory $AppRepo
 $unexpectedAppChanges = @(
   $appStatusLines |
@@ -176,7 +169,10 @@ if ($unexpectedAppChanges.Count -gt 0) {
   throw "App repo has unexpected source changes. Commit or stash before release: $($unexpectedAppChanges -join '; ')"
 }
 
-$resolvedTargetPath = [System.IO.Path]::GetFullPath($TargetPath)
+$resolvedTargetPath = ""
+if (-not [string]::IsNullOrWhiteSpace($TargetPath)) {
+  $resolvedTargetPath = [System.IO.Path]::GetFullPath($TargetPath)
+}
 $releaseTag = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "git" -Arguments @("describe", "--tags", "--abbrev=0", "--match", "v*") -AllowFailure) -join "").Trim()
 $commitLogFile = [System.IO.Path]::GetTempFileName()
 
@@ -211,6 +207,7 @@ $sourceInstaller = Join-Path $AppRepo ("release\Rommel-en-doe-wat-Setup-{0}.exe"
 $sourceInstallerBlockMap = Join-Path $AppRepo ("release\Rommel-en-doe-wat-Setup-{0}.exe.blockmap" -f $version)
 $sourcePortable = Join-Path $AppRepo ("release\Rommel-en-doe-wat-{0}-Portable.exe" -f $version)
 $sourceLatestManifest = Join-Path $AppRepo "release\latest.yml"
+$sourceStableInstaller = Join-Path $AppRepo "release\Rommel-en-doe-wat-Setup.exe"
 
 if (-not $SkipChecks) {
   Invoke-External -WorkingDirectory $AppRepo -Command "npm.cmd" -Arguments @("run", "check")
@@ -233,25 +230,25 @@ if (-not (Test-Path $sourcePortable -PathType Leaf)) {
   throw "Portable executable not found after build: $sourcePortable"
 }
 
-$targetDirectory = Split-Path -Parent $resolvedTargetPath
-if (-not (Test-Path $targetDirectory -PathType Container)) {
-  New-Item -ItemType Directory -Path $targetDirectory | Out-Null
-}
+Copy-Item -Path $sourceInstaller -Destination $sourceStableInstaller -Force
+Write-Host "Prepared stable installer alias at $sourceStableInstaller"
 
-Copy-Item -Path $sourceInstaller -Destination $resolvedTargetPath -Force
-Write-Host "Copied installer to $resolvedTargetPath"
+if (-not [string]::IsNullOrWhiteSpace($resolvedTargetPath)) {
+  $targetDirectory = Split-Path -Parent $resolvedTargetPath
+  if (-not (Test-Path $targetDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $targetDirectory | Out-Null
+  }
+
+  Copy-Item -Path $sourceInstaller -Destination $resolvedTargetPath -Force
+  Write-Host "Copied installer to $resolvedTargetPath"
+}
 
 if ($NoCommit) {
   Write-Host "Skipping git commits. App repo version files remain updated locally."
   exit 0
 }
 
-if ($resolvedTargetPath -ne $DefaultTargetPath) {
-  throw "Custom TargetPath requires -NoCommit."
-}
-
 $appBranchName = Get-CurrentBranchName -WorkingDirectory $AppRepo
-$marketingBranchName = Get-CurrentBranchName -WorkingDirectory $MarketingRepo
 $releaseTagName = "v$version"
 $existingTag = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "git" -Arguments @("tag", "--list", $releaseTagName)) -join "").Trim()
 if ($existingTag -eq $releaseTagName) {
@@ -302,6 +299,7 @@ try {
 
   Publish-GitHubRelease -TagName $releaseTagName -Version $version -AssetPaths @(
     $sourceInstaller,
+    $sourceStableInstaller,
     $sourceInstallerBlockMap,
     $sourcePortable,
     $sourceLatestManifest
@@ -313,47 +311,6 @@ try {
   }
 
   Write-Host ("Created and pushed app commit {0} ({1}) to {2}/{3}" -f $appCommitHash, $appCommitMessage, $RemoteName, $appBranchName)
-}
-finally {
-  Pop-Location
-}
-
-$stagedNames = Get-ExternalOutput -WorkingDirectory $MarketingRepo -Command "git" -Arguments @("diff", "--cached", "--name-only")
-$foreignStagedNames = @($stagedNames | Where-Object { $_ -and $_ -ne $TrackedInstallerPath })
-if ($foreignStagedNames.Count -gt 0) {
-  throw "Marketing repo has staged changes outside ${TrackedInstallerPath}: $($foreignStagedNames -join ', ')"
-}
-
-Invoke-External -WorkingDirectory $MarketingRepo -Command "git" -Arguments @("add", "--", $TrackedInstallerPath)
-
-Push-Location $MarketingRepo
-try {
-  & git diff --cached --quiet -- $TrackedInstallerPath
-  if ($LASTEXITCODE -gt 1) {
-    throw "git diff --cached failed with exit code $LASTEXITCODE"
-  }
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host "No installer changes to commit."
-    exit 0
-  }
-
-  $marketingCommitMessage = "chore: update windows installer to v$version"
-  & git commit -m $marketingCommitMessage -- $TrackedInstallerPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "git commit failed with exit code $LASTEXITCODE"
-  }
-
-  $commitHash = (& git rev-parse HEAD).Trim()
-  if ($LASTEXITCODE -ne 0) {
-    throw "git rev-parse HEAD failed with exit code $LASTEXITCODE"
-  }
-
-  & git push $RemoteName $marketingBranchName
-  if ($LASTEXITCODE -ne 0) {
-    throw "git push failed with exit code $LASTEXITCODE"
-  }
-
-  Write-Host ("Created and pushed marketing commit {0} ({1}) to {2}/{3}" -f $commitHash, $marketingCommitMessage, $RemoteName, $marketingBranchName)
 }
 finally {
   Pop-Location

@@ -1,6 +1,6 @@
 ---
 name: release-rommel-en-doe-wat-release
-description: Build and publish the Windows installer for Rommel en doe wat. Use when asked to release the desktop app, rebuild the Windows package, copy the installer into C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe, and commit plus push the marketing repo after updating that download artifact.
+description: Build and publish the Windows installer for Rommel en doe wat. Use when asked to release the desktop app, rebuild the Windows package, or publish/update the GitHub Release assets used by auto-update and the marketing site download link.
 ---
 
 # Release Rommel En Doe Wat
@@ -8,12 +8,11 @@ description: Build and publish the Windows installer for Rommel en doe wat. Use 
 Use fixed paths:
 
 - App repo: `C:\Users\Geert\Projects\rommel-en-doe-wat-2`
-- Marketing repo: `C:\Users\Geert\Projects\rommel-en-doe-wat-marketing`
-- Published installer: `C:\Users\Geert\Projects\rommel-en-doe-wat-marketing\downloads\Rommel-en-doe-wat-Setup.exe`
+- Stable release asset alias: `release\Rommel-en-doe-wat-Setup.exe`
 
 Workflow:
 
-1. Check both repos with `git status --short`.
+1. Check app repo with `git status --short`.
 2. Stop and ask before releasing from unexpected dirty app source changes. Ignore generated build output changes only.
 3. Release script auto-bumps semver before build:
    - `major` if commits since last `v*` tag contain `BREAKING CHANGE:` or `type!:` conventional commits
@@ -23,9 +22,10 @@ Workflow:
 4. Script also commits and pushes the app repo version bump (`package.json`, `package-lock.json`), creates/pushes tag `v<version>`, and publishes the updater assets to the GitHub Release for that tag:
    - `latest.yml`
    - NSIS installer
+   - stable installer alias `Rommel-en-doe-wat-Setup.exe`
    - NSIS blockmap
    - portable `.exe`
-5. Preserve unrelated marketing-repo edits. Only stage `downloads/Rommel-en-doe-wat-Setup.exe`.
+5. Marketing site download now points at `https://github.com/geert-mol/rommel-en-doe-wat-2/releases/latest/download/Rommel-en-doe-wat-Setup.exe`, so release no longer commits the binary into the marketing repo.
 6. Run:
 
 ```powershell
@@ -33,12 +33,11 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Geert\Projects\rommel-en-doe-w
 ```
 
 7. Use flags only for debugging:
-   - `-NoCommit`: build and copy, skip git commit
+   - `-NoCommit`: build only, skip git commit/tag/release
    - `-SkipChecks`: skip `npm run check`
    - `-SkipBuild`: skip `npm run dist:win`
-   - `-TargetPath <path>`: copy somewhere else; combine with `-NoCommit`
-8. Verify the copied installer exists and report:
+   - `-TargetPath <path>`: optional extra local copy target
+8. Verify the published assets and report:
    - app repo version bump commit/tag/push target
    - GitHub Release tag/assets published
-   - marketing commit hash/message/push target
-9. Push the marketing repo immediately after the installer commit. Do not leave release commits unpushed.
+   - installer file size/timestamp

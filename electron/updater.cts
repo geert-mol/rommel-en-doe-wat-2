@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { logError, logInfo } from "./logger.cjs";
 
 type UpdateStatus =
@@ -36,7 +38,19 @@ let didInitialize = false;
 let isChecking = false;
 let checkTimer: NodeJS.Timeout | null = null;
 
-const supportsAutoUpdates = (): boolean => app.isPackaged && process.platform === "win32";
+const getUpdaterConfigPath = (): string => path.join(process.resourcesPath, "app-update.yml");
+
+const hasUpdaterConfig = (): boolean => existsSync(getUpdaterConfigPath());
+
+const supportsAutoUpdates = (): boolean => app.isPackaged && process.platform === "win32" && hasUpdaterConfig();
+
+const getUnsupportedMessage = (): string => {
+  if (!app.isPackaged || process.platform !== "win32") {
+    return "Automatic updates only run in packaged Windows builds.";
+  }
+
+  return `Automatic updates are unavailable because ${getUpdaterConfigPath()} is missing.`;
+};
 
 const broadcastState = () => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -66,7 +80,7 @@ const checkForUpdates = async (): Promise<UpdateState> => {
   if (!supportsAutoUpdates()) {
     setState({
       status: "unsupported",
-      message: "Automatic updates only run in packaged Windows builds."
+      message: getUnsupportedMessage()
     });
     return currentState;
   }
@@ -130,7 +144,7 @@ export const initializeAutoUpdater = () => {
   if (!supportsAutoUpdates()) {
     setState({
       status: "unsupported",
-      message: "Automatic updates only run in packaged Windows builds."
+      message: getUnsupportedMessage()
     });
     return;
   }
