@@ -96,6 +96,7 @@ interface OpenMenuState {
   id: string;
   left: number;
   top: number;
+  placement: "above" | "below";
   items: MenuItem[];
 }
 
@@ -628,10 +629,6 @@ export const ElementListView = ({
     maxWidth: treeColumnWidth
   };
 
-  if (rows.length === 0) {
-    return <p className="empty">No rows yet. List appears when elements are added.</p>;
-  }
-
   const requestDelete = (
     elementId: string,
     conceptId: string,
@@ -650,15 +647,24 @@ export const ElementListView = ({
   const openKebabMenu = (menuId: string, items: MenuItem[], trigger: HTMLElement) => {
     const rect = trigger.getBoundingClientRect();
     const panelWidth = 156;
+    const estimatedPanelHeight = items.length * 34 + 8;
     const left = Math.max(8, Math.min(rect.right - panelWidth, window.innerWidth - panelWidth - 8));
-    const top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 8));
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const placement =
+      spaceBelow >= estimatedPanelHeight || spaceBelow >= spaceAbove ? "below" : "above";
     setOpenMenu({
       id: menuId,
       left,
-      top,
+      top: placement === "below" ? rect.bottom + 4 : rect.top - 4,
+      placement,
       items
     });
   };
+
+  if (rows.length === 0) {
+    return <p className="empty">No rows yet. List appears when elements are added.</p>;
+  }
 
   const copyFilenameWithFeedback = async (copyId: string, value: string) => {
     const didCopy = await copyToClipboard(value);
@@ -1182,7 +1188,11 @@ export const ElementListView = ({
             <div className="kebab-root" onClick={() => setOpenMenu(null)} role="presentation">
               <div
                 className="kebab-panel kebab-panel-floating"
-                style={{ left: openMenu.left, top: openMenu.top }}
+                style={{
+                  left: openMenu.left,
+                  top: openMenu.top,
+                  transform: openMenu.placement === "above" ? "translateY(-100%)" : undefined
+                }}
                 onClick={(event) => event.stopPropagation()}
               >
                 {openMenu.items.map((item) => (
