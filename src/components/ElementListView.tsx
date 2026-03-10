@@ -748,26 +748,29 @@ export const ElementListView = ({
                   <td>{historyRow.versionLabel}</td>
                   <td>{historyRow.releaseState}</td>
                   <td className="mono-cell" title={historyRow.fileName}>
-                    <div className="filename-cell">
+                    <button
+                      aria-label={`Copy filename ${historyRow.fileName}`}
+                      className={`filename-cell filename-copy-surface ${copiedFilenameId === `history-${historyRow.versionId}` ? "is-copied" : ""}`}
+                      onClick={() =>
+                        void copyFilenameWithFeedback(
+                          `history-${historyRow.versionId}`,
+                          historyRow.fileName
+                        )
+                      }
+                      type="button"
+                    >
                       <span className="filename-text">{historyRow.fileName}</span>
-                      <button
-                        aria-label={`Copy filename ${historyRow.fileName}`}
+                      <span
                         className={`filename-copy-btn ${copiedFilenameId === `history-${historyRow.versionId}` ? "is-copied" : ""}`}
-                        onClick={() =>
-                          void copyFilenameWithFeedback(
-                            `history-${historyRow.versionId}`,
-                            historyRow.fileName
-                          )
-                        }
-                        type="button"
+                        aria-hidden="true"
                       >
                         {copiedFilenameId === `history-${historyRow.versionId}` ? (
                           <CheckIcon />
                         ) : (
                           <CopyIcon />
                         )}
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   </td>
                   {HISTORY_EXPORT_FIELDS.map((field) => {
                     const isEnabled = historyRow.availableExports?.[field.kind] === true;
@@ -1053,26 +1056,29 @@ export const ElementListView = ({
                   </select>
                 </td>
                 <td className="mono-cell" title={row.fileName}>
-                  <div className="filename-cell">
+                  <button
+                    aria-label={`Copy filename ${row.fileName}`}
+                    className={`filename-cell filename-copy-surface ${copiedFilenameId === `${row.usageId}-${row.version.id}` ? "is-copied" : ""}`}
+                    onClick={() =>
+                      void copyFilenameWithFeedback(
+                        `${row.usageId}-${row.version.id}`,
+                        row.fileName
+                      )
+                    }
+                    type="button"
+                  >
                     <span className="filename-text">{row.fileName}</span>
-                    <button
-                      aria-label={`Copy filename ${row.fileName}`}
+                    <span
                       className={`filename-copy-btn ${copiedFilenameId === `${row.usageId}-${row.version.id}` ? "is-copied" : ""}`}
-                      onClick={() =>
-                        void copyFilenameWithFeedback(
-                          `${row.usageId}-${row.version.id}`,
-                          row.fileName
-                        )
-                      }
-                      type="button"
+                      aria-hidden="true"
                     >
                       {copiedFilenameId === `${row.usageId}-${row.version.id}` ? (
                         <CheckIcon />
                       ) : (
                         <CopyIcon />
                       )}
-                    </button>
-                  </div>
+                    </span>
+                  </button>
                 </td>
                 <td>{new Date(row.version.createdAt).toLocaleDateString()}</td>
                 <td>
