@@ -13,6 +13,7 @@ import {
 import { exportProjectExcel } from "./lib/desktop-export";
 import { buildProjectExportPayload } from "./lib/export";
 import { isDesktopApp, pickDirectory, saveAppState } from "./lib/desktop";
+import { parseMarkdownBlocks } from "./lib/markdown";
 import { padProjectOrProductId } from "./lib/filename";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
@@ -523,6 +524,28 @@ function App() {
   const currentVersionLabel = updateState?.currentVersion ?? "Unknown";
   const promptVersion = updateState?.downloadedVersion ?? updateState?.availableVersion ?? null;
   const releaseNotes = updateState?.releaseNotes ?? [];
+  const renderMarkdownNote = (body: string) => (
+    <div className="update-note-body">
+      {parseMarkdownBlocks(body).map((block, index) => {
+        if (block.type === "heading") {
+          const HeadingTag = block.level === 1 ? "h4" : block.level === 2 ? "h5" : "h6";
+          return <HeadingTag key={`${block.type}-${index}`}>{block.text}</HeadingTag>;
+        }
+
+        if (block.type === "list") {
+          return (
+            <ul key={`${block.type}-${index}`}>
+              {block.items.map((item, itemIndex) => (
+                <li key={`${block.type}-${index}-${itemIndex}`}>{item}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        return <p key={`${block.type}-${index}`}>{block.text}</p>;
+      })}
+    </div>
+  );
 
   const deleteModal = pendingDelete ? (
     <div className="confirm-backdrop" onClick={() => setPendingDelete(null)} role="presentation">
@@ -809,7 +832,7 @@ function App() {
                       {note.publishedAt ? new Date(note.publishedAt).toLocaleDateString() : null}
                     </p>
                   </div>
-                  <pre className="update-note-body">{note.body}</pre>
+                  {renderMarkdownNote(note.body)}
                 </article>
               ))
             ) : (
@@ -817,7 +840,7 @@ function App() {
                 <div className="update-note-head">
                   <h3>Version {promptVersion}</h3>
                 </div>
-                <pre className="update-note-body">Release notes are not available.</pre>
+                {renderMarkdownNote("Release notes are not available.")}
               </article>
             )}
           </div>

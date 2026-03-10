@@ -1157,10 +1157,34 @@ button:hover {
 
 .update-note-body {
   margin: 0.55rem 0 0;
-  white-space: pre-wrap;
-  font: inherit;
   line-height: 1.45;
   color: #2f3942;
+}
+
+.update-note-body > :first-child {
+  margin-top: 0;
+}
+
+.update-note-body > :last-child {
+  margin-bottom: 0;
+}
+
+.update-note-body h4,
+.update-note-body h5,
+.update-note-body h6 {
+  margin: 0.7rem 0 0.35rem;
+  font-family: "Oswald", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.update-note-body p,
+.update-note-body ul {
+  margin: 0.35rem 0;
+}
+
+.update-note-body ul {
+  padding-left: 1.1rem;
 }
 
 .update-actions {
