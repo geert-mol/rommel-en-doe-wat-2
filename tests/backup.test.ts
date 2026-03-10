@@ -5,14 +5,15 @@ import type { AppState } from "../src/lib/types";
 describe("app backups", () => {
   it("round-trips valid app state through the backup format", () => {
     const state: AppState = {
-      projects: [{ id: "project-1", projectId: "001", name: "Bridge" }],
+      projects: [{ id: "project-1", projectId: "001", name: "Bridge", sortOrder: 0 }],
       products: [
         {
           id: "product-1",
           projectId: "project-1",
           productId: "001",
           name: "Deck",
-          folderPath: "D:/Bridge/Deck"
+          folderPath: "D:/Bridge/Deck",
+          sortOrder: 0
         }
       ],
       elements: [

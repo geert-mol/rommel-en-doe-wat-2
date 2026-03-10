@@ -7,6 +7,7 @@ import {
   type ReleaseState,
   type VersionExports
 } from "./types";
+import { normalizeProducts, normalizeProjects } from "./order";
 
 export const STORAGE_KEY = "rnd-pdm-state-v1";
 
@@ -60,6 +61,9 @@ const isReleaseState = (value: unknown): value is ReleaseState =>
 const isElementType = (value: unknown): value is ElementType =>
   typeof value === "string" && ELEMENT_TYPES.includes(value as ElementType);
 
+const isSortOrder = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0;
+
 const normalizeVersionExports = (value: unknown): VersionExports | undefined => {
   if (!isRecord(value)) return undefined;
 
@@ -96,12 +100,14 @@ export const parseAppState = (value: unknown): AppState | null => {
     return {
       id: project.id,
       projectId: project.projectId,
-      name: project.name
+      name: project.name,
+      ...(isSortOrder(project.sortOrder) ? { sortOrder: project.sortOrder } : {})
     };
   });
 
   if (projects.some((project) => project === null)) return null;
-  const projectById = new Map((projects as AppState["projects"]).map((project) => [project.id, project]));
+  const normalizedProjects = normalizeProjects(projects as AppState["projects"]);
+  const projectById = new Map(normalizedProjects.map((project) => [project.id, project]));
 
   const products = value.products.map((product) => {
     if (!isRecord(product)) return null;
@@ -116,6 +122,7 @@ export const parseAppState = (value: unknown): AppState | null => {
       projectId: product.projectId,
       productId: product.productId,
       name: product.name,
+      ...(isSortOrder(product.sortOrder) ? { sortOrder: product.sortOrder } : {}),
       folderPath:
         product.folderPath ??
         deriveLegacyProductFolder(
@@ -204,10 +211,11 @@ export const parseAppState = (value: unknown): AppState | null => {
   if (value.selectedProductId !== undefined && typeof value.selectedProductId !== "string") return null;
 
   const sanitizedElements = sanitizeElementParents(elements as AppState["elements"]);
+  const normalizedProducts = normalizeProducts(products as AppState["products"]);
 
   return {
-    projects,
-    products,
+    projects: normalizedProjects,
+    products: normalizedProducts,
     elements: sanitizedElements,
     selectedProjectId: value.selectedProjectId,
     selectedProductId: value.selectedProductId

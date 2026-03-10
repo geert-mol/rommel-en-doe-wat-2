@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ElementListView } from "./components/ElementListView";
+import { SidebarReorderList } from "./components/SidebarReorderList";
 import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
 import {
   checkForDesktopUpdates,
@@ -15,6 +16,7 @@ import { buildProjectExportPayload } from "./lib/export";
 import { isDesktopApp, pickDirectory, saveAppState } from "./lib/desktop";
 import { parseMarkdownBlocks } from "./lib/markdown";
 import { padProjectOrProductId } from "./lib/filename";
+import { sortProductsForProject, sortProjects } from "./lib/order";
 import { useAppStore } from "./lib/store";
 import { ELEMENT_TYPES, type ElementType, type ReleaseState } from "./lib/types";
 
@@ -47,19 +49,6 @@ const nextPartNumberForProduct = (partNumbers: string[]): string => {
   return String(maxValue + 1).padStart(2, "0");
 };
 
-const EditIcon = () => (
-  <svg className="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      d="m4 16.5 9.9-9.9 3.5 3.5-9.9 9.9-4.5 1 1-4.5Zm11.3-11.3 1.4-1.4a1.5 1.5 0 0 1 2.1 0l1.4 1.4a1.5 1.5 0 0 1 0 2.1l-1.4 1.4-3.5-3.5Z"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.5"
-    />
-  </svg>
-);
-
 function App() {
   const {
     state,
@@ -75,6 +64,8 @@ function App() {
     updateProduct,
     deleteProject,
     deleteProduct,
+    reorderProjectList,
+    reorderProductList,
     replaceState
   } = useAppStore();
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
@@ -258,8 +249,9 @@ function App() {
     };
   }, [isParentDropdownOpen]);
 
+  const orderedProjects = useMemo(() => sortProjects(state.projects), [state.projects]);
   const productsForSelectedProject = useMemo(
-    () => state.products.filter((product) => product.projectId === selectedProject?.id),
+    () => sortProductsForProject(state.products, selectedProject?.id),
     [state.products, selectedProject?.id]
   );
 
@@ -476,6 +468,18 @@ function App() {
     if (!editingProject || !editingProject.projectId.trim() || !editingProject.name.trim()) return;
     updateProject(editingProject.id, editingProject.projectId, editingProject.name);
     setEditingProject(null);
+  };
+
+  const openProjectEditorById = (projectId: string) => {
+    const project = state.projects.find((candidate) => candidate.id === projectId);
+    if (!project) return;
+    openProjectEditor(project);
+  };
+
+  const openProductEditorById = (productId: string) => {
+    const product = state.products.find((candidate) => candidate.id === productId);
+    if (!product) return;
+    openProductEditor(product);
   };
 
   const parentDropdown = isParentDropdownOpen && parentDropdownRect
@@ -1039,29 +1043,17 @@ function App() {
             <button type="submit">Create project</button>
           </form>
 
-          <ul className="list">
-            {state.projects.map((project) => (
-              <li key={project.id} className="list-item">
-                <div className="sidebar-item">
-                <button
-                  className={`sidebar-select ${project.id === selectedProject?.id ? "active" : ""}`.trim()}
-                  onClick={() => dispatch({ type: "SELECT_PROJECT", payload: project.id })}
-                  type="button"
-                >
-                  {project.projectId} {project.name}
-                </button>
-                <button
-                  aria-label={`Edit project ${project.projectId} ${project.name}`}
-                  className="sidebar-item-action"
-                  onClick={() => openProjectEditor(project)}
-                  type="button"
-                >
-                  <EditIcon />
-                </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SidebarReorderList
+            items={orderedProjects.map((project) => ({
+              id: project.id,
+              label: `${project.projectId} ${project.name}`,
+              isActive: project.id === selectedProject?.id,
+              editLabel: `Edit project ${project.projectId} ${project.name}`
+            }))}
+            onEdit={openProjectEditorById}
+            onReorder={reorderProjectList}
+            onSelect={(projectId) => dispatch({ type: "SELECT_PROJECT", payload: projectId })}
+          />
           </section>
 
           <section className="panel">
@@ -1124,29 +1116,20 @@ function App() {
             </button>
           </form>
 
-          <ul className="list">
-            {productsForSelectedProject.map((product) => (
-              <li key={product.id} className="list-item">
-                <div className="sidebar-item">
-                <button
-                  className={`sidebar-select ${product.id === selectedProduct?.id ? "active" : ""}`.trim()}
-                  onClick={() => dispatch({ type: "SELECT_PRODUCT", payload: product.id })}
-                  type="button"
-                >
-                  {product.productId} {product.name}
-                </button>
-                <button
-                  aria-label={`Edit product ${product.productId} ${product.name}`}
-                  className="sidebar-item-action"
-                  onClick={() => openProductEditor(product)}
-                  type="button"
-                >
-                  <EditIcon />
-                </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SidebarReorderList
+            items={productsForSelectedProject.map((product) => ({
+              id: product.id,
+              label: `${product.productId} ${product.name}`,
+              isActive: product.id === selectedProduct?.id,
+              editLabel: `Edit product ${product.productId} ${product.name}`
+            }))}
+            onEdit={openProductEditorById}
+            onReorder={(orderedIds) => {
+              if (!selectedProject) return;
+              reorderProductList(selectedProject.id, orderedIds);
+            }}
+            onSelect={(productId) => dispatch({ type: "SELECT_PRODUCT", payload: productId })}
+          />
           </section>
         </aside>
 

@@ -265,10 +265,56 @@ button:hover {
 
 .list-item {
   margin: 0;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 140ms ease;
+}
+
+.list-item.is-dragging {
+  opacity: 0.52;
 }
 
 .sidebar-item {
   position: relative;
+}
+
+.sidebar-item-reorderable {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.sidebar-select-shell {
+  position: relative;
+}
+
+.sidebar-reorder-handle {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.5rem;
+  padding: 0;
+  border-color: #dfcfb7;
+  background: #f8f1e4;
+  color: #5f6870;
+  cursor: grab;
+}
+
+.sidebar-reorder-handle:active {
+  cursor: grabbing;
+}
+
+.sidebar-reorder-handle:hover,
+.sidebar-reorder-handle:focus-visible {
+  transform: none;
+  background: #eee4cf;
+  border-color: #ccb994;
+  color: #22313d;
+}
+
+.grip-icon {
+  width: 0.92rem;
+  height: 0.92rem;
+  fill: currentColor;
 }
 
 .list .sidebar-select {
@@ -276,6 +322,7 @@ button:hover {
   text-align: left;
   background: #f4f1e5;
   border-color: #d7d0bd;
+  min-width: 0;
   padding-right: 2.8rem;
 }
 

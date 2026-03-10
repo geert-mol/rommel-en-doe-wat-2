@@ -5,6 +5,12 @@ import {
   padProjectOrProductId,
   slugify
 } from "./filename";
+import {
+  normalizeProducts,
+  normalizeProjects,
+  reorderProducts,
+  reorderProjects
+} from "./order";
 import { createInitialAppState } from "./persistence";
 import { collectDescendantIds } from "./structure";
 import type {
@@ -60,10 +66,16 @@ interface UpdateProductPayload {
   folderPath: string;
 }
 
+interface ReorderProductsPayload {
+  projectId: string;
+  orderedIds: string[];
+}
+
 type Action =
   | { type: "LOAD"; payload: AppState }
   | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string } }
   | { type: "SELECT_PROJECT"; payload: string }
+  | { type: "REORDER_PROJECTS"; payload: { orderedIds: string[] } }
   | { type: "UPDATE_PROJECT"; payload: UpdateProjectPayload }
   | { type: "DELETE_PROJECT"; payload: DeleteProjectPayload }
   | {
@@ -71,6 +83,7 @@ type Action =
       payload: { projectId: string; productId: string; name: string; folderPath: string };
     }
   | { type: "SELECT_PRODUCT"; payload: string }
+  | { type: "REORDER_PRODUCTS"; payload: ReorderProductsPayload }
   | { type: "UPDATE_PRODUCT"; payload: UpdateProductPayload }
   | { type: "DELETE_PRODUCT"; payload: DeleteProductPayload }
   | {
@@ -107,9 +120,6 @@ const createDefaultConcept = () => ({
     }
   ]
 });
-
-const sortById = <T extends { name: string }>(values: T[]): T[] =>
-  [...values].sort((a, b) => a.name.localeCompare(b.name));
 
 const parentCapableTypes = new Set<ElementType>(["HA", "SA", "MM"]);
 
@@ -265,7 +275,7 @@ export const updateProjectDetails = (
 
   return {
     ...state,
-    projects: sortById(
+    projects: normalizeProjects(
       state.projects.map((candidate) =>
         candidate.id === payload.projectRef
           ? {
@@ -304,7 +314,7 @@ export const updateProductDetails = (
 
   return {
     ...state,
-    products: sortById(
+    products: normalizeProducts(
       state.products.map((candidate) =>
         candidate.id === payload.productRef
           ? {
@@ -319,19 +329,40 @@ export const updateProductDetails = (
   };
 };
 
+export const reorderProjectsInState = (
+  state: AppState,
+  payload: { orderedIds: string[] }
+): AppState => ({
+  ...state,
+  projects: reorderProjects(state.projects, payload.orderedIds)
+});
+
+export const reorderProductsInState = (
+  state: AppState,
+  payload: ReorderProductsPayload
+): AppState => ({
+  ...state,
+  products: reorderProducts(state.products, payload.projectId, payload.orderedIds)
+});
+
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case "LOAD":
-      return action.payload;
+      return {
+        ...action.payload,
+        projects: normalizeProjects(action.payload.projects),
+        products: normalizeProducts(action.payload.products)
+      };
     case "CREATE_PROJECT": {
       const project: Project = {
         id: crypto.randomUUID(),
         projectId: padProjectOrProductId(action.payload.projectId),
-        name: action.payload.name.trim()
+        name: action.payload.name.trim(),
+        sortOrder: state.projects.length
       };
       return {
         ...state,
-        projects: sortById([...state.projects, project]),
+        projects: normalizeProjects([...state.projects, project]),
         selectedProjectId: project.id
       };
     }
@@ -341,30 +372,48 @@ const reducer = (state: AppState, action: Action): AppState => {
         selectedProjectId: action.payload,
         selectedProductId: undefined
       };
+    case "REORDER_PROJECTS":
+      return reorderProjectsInState(state, action.payload);
     case "UPDATE_PROJECT":
       return updateProjectDetails(state, action.payload);
-    case "DELETE_PROJECT":
-      return deleteProjectAndCleanup(state, action.payload);
+    case "DELETE_PROJECT": {
+      const nextState = deleteProjectAndCleanup(state, action.payload);
+      return {
+        ...nextState,
+        projects: normalizeProjects(nextState.projects),
+        products: normalizeProducts(nextState.products)
+      };
+    }
     case "CREATE_PRODUCT": {
+      const nextSortOrder =
+        state.products.filter((product) => product.projectId === action.payload.projectId).length;
       const product: Product = {
         id: crypto.randomUUID(),
         productId: padProjectOrProductId(action.payload.productId),
         projectId: action.payload.projectId,
         name: action.payload.name.trim(),
-        folderPath: action.payload.folderPath.trim()
+        folderPath: action.payload.folderPath.trim(),
+        sortOrder: nextSortOrder
       };
       return {
         ...state,
-        products: sortById([...state.products, product]),
+        products: normalizeProducts([...state.products, product]),
         selectedProductId: product.id
       };
     }
     case "SELECT_PRODUCT":
       return { ...state, selectedProductId: action.payload };
+    case "REORDER_PRODUCTS":
+      return reorderProductsInState(state, action.payload);
     case "UPDATE_PRODUCT":
       return updateProductDetails(state, action.payload);
-    case "DELETE_PRODUCT":
-      return deleteProductAndCleanup(state, action.payload);
+    case "DELETE_PRODUCT": {
+      const nextState = deleteProductAndCleanup(state, action.payload);
+      return {
+        ...nextState,
+        products: normalizeProducts(nextState.products)
+      };
+    }
     case "CREATE_ELEMENT": {
       const elementId = crypto.randomUUID();
       const parentElementIds =
@@ -570,6 +619,12 @@ export const useAppStore = () => {
   const deleteProduct = (productId: string) =>
     dispatch({ type: "DELETE_PRODUCT", payload: { productId } });
 
+  const reorderProjectList = (orderedIds: string[]) =>
+    dispatch({ type: "REORDER_PROJECTS", payload: { orderedIds } });
+
+  const reorderProductList = (projectId: string, orderedIds: string[]) =>
+    dispatch({ type: "REORDER_PRODUCTS", payload: { projectId, orderedIds } });
+
   const replaceState = (nextState: AppState) => {
     skipNextPersist.current = true;
     dispatch({ type: "LOAD", payload: nextState });
@@ -591,6 +646,8 @@ export const useAppStore = () => {
     updateProduct,
     deleteProject,
     deleteProduct,
+    reorderProjectList,
+    reorderProductList,
     replaceState
   };
 };

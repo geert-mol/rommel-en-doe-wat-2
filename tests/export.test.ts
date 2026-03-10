@@ -3,21 +3,23 @@ import { buildProjectExportPayload } from "../src/lib/export";
 import type { AppState } from "../src/lib/types";
 
 const state: AppState = {
-  projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
+  projects: [{ id: "project-1", projectId: "013", name: "Aquaframe", sortOrder: 0 }],
   products: [
     {
       id: "product-1",
       projectId: "project-1",
       productId: "009",
       name: "Balcony Kit",
-      folderPath: "D:/Vault/Aquaframe/Balcony Kit/Models"
+      folderPath: "D:/Vault/Aquaframe/Balcony Kit/Models",
+      sortOrder: 1
     },
     {
       id: "product-2",
       projectId: "project-1",
       productId: "010",
       name: "Pump Module",
-      folderPath: "D:/Vault/Aquaframe/Pump Module/Models"
+      folderPath: "D:/Vault/Aquaframe/Pump Module/Models",
+      sortOrder: 0
     }
   ],
   elements: [
@@ -111,12 +113,13 @@ describe("buildProjectExportPayload", () => {
 
     expect(payload?.projectCode).toBe("013");
     expect(payload?.sheets).toHaveLength(2);
-    expect(payload?.sheets[0].productCode).toBe("009");
-    expect(payload?.sheets[0].rows).toHaveLength(3);
-    expect(payload?.sheets[0].rows[0].versionLabel).toBe("v2");
-    expect(payload?.sheets[0].rows[1].versionLabel).toBe("v1-1");
-    expect(payload?.sheets[0].rows[2].parentLabel).toBe("HA 00 frame");
-    expect(payload?.sheets[1].rows[0].filePath).toContain(
+    expect(payload?.sheets[0].productCode).toBe("010");
+    expect(payload?.sheets[0].rows).toHaveLength(1);
+    expect(payload?.sheets[1].productCode).toBe("009");
+    expect(payload?.sheets[1].rows[0].versionLabel).toBe("v2");
+    expect(payload?.sheets[1].rows[1].versionLabel).toBe("v1-1");
+    expect(payload?.sheets[1].rows[2].parentLabel).toBe("HA 00 frame");
+    expect(payload?.sheets[0].rows[0].filePath).toContain(
       "D:/Vault/Aquaframe/Pump Module/Models/"
     );
   });

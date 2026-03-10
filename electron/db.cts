@@ -10,6 +10,7 @@ interface Project {
   id: string;
   projectId: string;
   name: string;
+  sortOrder?: number;
 }
 
 interface Product {
@@ -18,6 +19,7 @@ interface Product {
   productId: string;
   name: string;
   folderPath?: string;
+  sortOrder?: number;
 }
 
 interface ElementVersion {
@@ -61,6 +63,7 @@ interface ProjectRow {
   project_code: string;
   name: string;
   root_path: string | null;
+  sort_order: number;
 }
 
 interface ProductRow {
@@ -69,6 +72,7 @@ interface ProductRow {
   product_code: string;
   name: string;
   folder_path: string | null;
+  sort_order: number;
 }
 
 interface ElementRow {
@@ -197,7 +201,8 @@ const getDatabase = (): Database.Database => {
       id TEXT PRIMARY KEY,
       project_code TEXT NOT NULL,
       name TEXT NOT NULL,
-      root_path TEXT
+      root_path TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -206,6 +211,7 @@ const getDatabase = (): Database.Database => {
       product_code TEXT NOT NULL,
       name TEXT NOT NULL,
       folder_path TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (project_ref) REFERENCES projects(id) ON DELETE CASCADE
     );
 
@@ -270,6 +276,11 @@ const getDatabase = (): Database.Database => {
       (column) => column.name
     )
   );
+  const projectColumns = new Set(
+    (database.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
   const missingVersionColumns = [
     ["has_solidworks_drawing", "INTEGER NOT NULL DEFAULT 0"],
     ["has_step", "INTEGER NOT NULL DEFAULT 0"],
@@ -284,6 +295,53 @@ const getDatabase = (): Database.Database => {
 
   if (!productColumns.has("folder_path")) {
     database.exec("ALTER TABLE products ADD COLUMN folder_path TEXT");
+  }
+
+  if (!projectColumns.has("sort_order")) {
+    database.exec("ALTER TABLE projects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    const legacyProjects = database
+      .prepare(
+        `
+          SELECT id
+          FROM projects
+          ORDER BY name COLLATE NOCASE, project_code
+        `
+      )
+      .all() as Array<{ id: string }>;
+    const updateProjectSortOrder = database.prepare(
+      "UPDATE projects SET sort_order = @sort_order WHERE id = @id"
+    );
+    legacyProjects.forEach((project, index) => {
+      updateProjectSortOrder.run({
+        id: project.id,
+        sort_order: index
+      });
+    });
+  }
+
+  if (!productColumns.has("sort_order")) {
+    database.exec("ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    const legacyProducts = database
+      .prepare(
+        `
+          SELECT id, project_ref
+          FROM products
+          ORDER BY project_ref, name COLLATE NOCASE, product_code
+        `
+      )
+      .all() as Array<{ id: string; project_ref: string }>;
+    const nextSortOrderByProject = new Map<string, number>();
+    const updateProductSortOrder = database.prepare(
+      "UPDATE products SET sort_order = @sort_order WHERE id = @id"
+    );
+    for (const product of legacyProducts) {
+      const sortOrder = nextSortOrderByProject.get(product.project_ref) ?? 0;
+      updateProductSortOrder.run({
+        id: product.id,
+        sort_order: sortOrder
+      });
+      nextSortOrderByProject.set(product.project_ref, sortOrder + 1);
+    }
   }
 
   const parentLinkCount = (
@@ -331,14 +389,14 @@ const saveStateTxn = (db: Database.Database) =>
 
     const projectStatement = db.prepare(
       `
-        INSERT INTO projects (id, project_code, name, root_path)
-        VALUES (@id, @project_code, @name, @root_path)
+        INSERT INTO projects (id, project_code, name, root_path, sort_order)
+        VALUES (@id, @project_code, @name, @root_path, @sort_order)
       `
     );
     const productStatement = db.prepare(
       `
-        INSERT INTO products (id, project_ref, product_code, name, folder_path)
-        VALUES (@id, @project_ref, @product_code, @name, @folder_path)
+        INSERT INTO products (id, project_ref, product_code, name, folder_path, sort_order)
+        VALUES (@id, @project_ref, @product_code, @name, @folder_path, @sort_order)
       `
     );
     const elementStatement = db.prepare(
@@ -418,7 +476,8 @@ const saveStateTxn = (db: Database.Database) =>
         id: project.id,
         project_code: project.projectId,
         name: project.name,
-        root_path: null
+        root_path: null,
+        sort_order: project.sortOrder ?? 0
       });
     }
 
@@ -428,7 +487,8 @@ const saveStateTxn = (db: Database.Database) =>
         project_ref: product.projectId,
         product_code: product.productId,
         name: product.name,
-        folder_path: product.folderPath ?? null
+        folder_path: product.folderPath ?? null,
+        sort_order: product.sortOrder ?? 0
       });
     }
 
@@ -492,12 +552,20 @@ export const loadState = (): AppState => {
     | undefined;
   const projects = db
     .prepare(
-      "SELECT id, project_code, name, root_path FROM projects ORDER BY name COLLATE NOCASE, project_code"
+      `
+        SELECT id, project_code, name, root_path, sort_order
+        FROM projects
+        ORDER BY sort_order, name COLLATE NOCASE, project_code
+      `
     )
     .all() as ProjectRow[];
   const products = db
     .prepare(
-      "SELECT id, project_ref, product_code, name, folder_path FROM products ORDER BY name COLLATE NOCASE, product_code"
+      `
+        SELECT id, project_ref, product_code, name, folder_path, sort_order
+        FROM products
+        ORDER BY project_ref, sort_order, name COLLATE NOCASE, product_code
+      `
     )
     .all() as ProductRow[];
   const elements = db
@@ -587,13 +655,15 @@ export const loadState = (): AppState => {
     projects: projects.map((project) => ({
       id: project.id,
       projectId: project.project_code,
-      name: project.name
+      name: project.name,
+      sortOrder: project.sort_order
     })),
     products: products.map((product) => ({
       id: product.id,
       projectId: product.project_ref,
       productId: product.product_code,
       name: product.name,
+      sortOrder: product.sort_order,
       folderPath:
         product.folder_path ??
         deriveLegacyProductFolder(

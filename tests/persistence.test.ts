@@ -5,14 +5,15 @@ import type { AppState } from "../src/lib/types";
 describe("parseAppState", () => {
   it("accepts persisted state with nested concept/version data", () => {
     const state: AppState = {
-      projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
+      projects: [{ id: "project-1", projectId: "013", name: "Aquaframe", sortOrder: 0 }],
       products: [
         {
           id: "product-1",
           projectId: "project-1",
           productId: "009",
           name: "Balcony Kit",
-          folderPath: "D:/Products/Balcony Kit/Models"
+          folderPath: "D:/Products/Balcony Kit/Models",
+          sortOrder: 0
         }
       ],
       elements: [
@@ -65,14 +66,55 @@ describe("parseAppState", () => {
         elements: []
       })
     ).toEqual({
-      projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
+      projects: [{ id: "project-1", projectId: "013", name: "Aquaframe", sortOrder: 0 }],
       products: [
         {
           id: "product-1",
           projectId: "project-1",
           productId: "009",
           name: "Legacy",
-          folderPath: "C:/Engineering/0013 - Aquaframe/0009-Legacy/03. Engineering/3D Modellen"
+          folderPath: "C:/Engineering/0013 - Aquaframe/0009-Legacy/03. Engineering/3D Modellen",
+          sortOrder: 0
+        }
+      ],
+      elements: []
+    });
+  });
+
+  it("migrates missing sort orders and honors stored manual order", () => {
+    expect(
+      parseAppState({
+        projects: [
+          { id: "project-2", projectId: "014", name: "Beta", sortOrder: 1 },
+          { id: "project-1", projectId: "013", name: "Alpha", sortOrder: 0 }
+        ],
+        products: [
+          { id: "product-2", projectId: "project-1", productId: "010", name: "Later", sortOrder: 1 },
+          { id: "product-1", projectId: "project-1", productId: "009", name: "Earlier", sortOrder: 0 },
+          { id: "product-3", projectId: "project-2", productId: "001", name: "Standalone" }
+        ],
+        elements: []
+      })
+    ).toEqual({
+      projects: [
+        { id: "project-1", projectId: "013", name: "Alpha", sortOrder: 0 },
+        { id: "project-2", projectId: "014", name: "Beta", sortOrder: 1 }
+      ],
+      products: [
+        { id: "product-2", projectId: "project-1", productId: "010", name: "Later", sortOrder: 1 },
+        {
+          id: "product-1",
+          projectId: "project-1",
+          productId: "009",
+          name: "Earlier",
+          sortOrder: 0
+        },
+        {
+          id: "product-3",
+          projectId: "project-2",
+          productId: "001",
+          name: "Standalone",
+          sortOrder: 0
         }
       ],
       elements: []

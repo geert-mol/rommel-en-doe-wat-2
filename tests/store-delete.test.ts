@@ -219,14 +219,15 @@ describe("deleteProductAndCleanup", () => {
 describe("updateProductDetails", () => {
   it("updates the product name and folder path while keeping selection", () => {
     const state: AppState = {
-      projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
+      projects: [{ id: "project-1", projectId: "001", name: "Alpha", sortOrder: 0 }],
       products: [
         {
           id: "product-1",
           projectId: "project-1",
           productId: "001",
           name: "Desk",
-          folderPath: "D:/Products/Desk"
+          folderPath: "D:/Products/Desk",
+          sortOrder: 0
         }
       ],
       elements: [],
@@ -247,7 +248,8 @@ describe("updateProductDetails", () => {
         projectId: "project-1",
         productId: "007",
         name: "Desk XL",
-        folderPath: "D:/Products/Desk XL"
+        folderPath: "D:/Products/Desk XL",
+        sortOrder: 0
       }
     ]);
     expect(result.selectedProductId).toBe("product-1");
@@ -257,7 +259,7 @@ describe("updateProductDetails", () => {
 describe("updateProjectDetails", () => {
   it("updates the project name while keeping selection", () => {
     const state: AppState = {
-      projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
+      projects: [{ id: "project-1", projectId: "001", name: "Alpha", sortOrder: 0 }],
       products: [],
       elements: [],
       selectedProjectId: "project-1"
@@ -269,7 +271,9 @@ describe("updateProjectDetails", () => {
       name: "Alpha Prime"
     });
 
-    expect(result.projects).toEqual([{ id: "project-1", projectId: "009", name: "Alpha Prime" }]);
+    expect(result.projects).toEqual([
+      { id: "project-1", projectId: "009", name: "Alpha Prime", sortOrder: 0 }
+    ]);
     expect(result.selectedProjectId).toBe("project-1");
   });
 });

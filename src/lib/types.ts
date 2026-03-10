@@ -20,6 +20,7 @@ export interface Project {
   id: string;
   projectId: string;
   name: string;
+  sortOrder?: number;
 }
 
 export interface Product {
@@ -28,6 +29,7 @@ export interface Product {
   projectId: string;
   name: string;
   folderPath?: string;
+  sortOrder?: number;
 }
 
 export interface ElementVersion {

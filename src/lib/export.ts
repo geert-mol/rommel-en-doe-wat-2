@@ -3,6 +3,7 @@ import {
   formatVersionLabel,
   generateFileName
 } from "./filename";
+import { sortProductsForProject } from "./order";
 import { buildUsageOrder } from "./structure";
 import type {
   AppState,
@@ -101,9 +102,7 @@ export const buildProjectExportPayload = (
   const project = state.projects.find((candidate) => candidate.id === projectId);
   if (!project) return null;
 
-  const products = state.products
-    .filter((product) => product.projectId === project.id)
-    .sort((a, b) => a.productId.localeCompare(b.productId) || a.name.localeCompare(b.name));
+  const products = sortProductsForProject(state.products, project.id);
 
   return {
     projectId: project.id,
