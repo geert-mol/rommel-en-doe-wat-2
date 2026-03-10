@@ -445,8 +445,20 @@ function App() {
   };
 
   const saveProductEdit = () => {
-    if (!editingProduct || !editingProduct.name.trim() || !editingProduct.folderPath.trim()) return;
-    updateProduct(editingProduct.id, editingProduct.name, editingProduct.folderPath);
+    if (
+      !editingProduct ||
+      !editingProduct.productId.trim() ||
+      !editingProduct.name.trim() ||
+      !editingProduct.folderPath.trim()
+    ) {
+      return;
+    }
+    updateProduct(
+      editingProduct.id,
+      editingProduct.productId,
+      editingProduct.name,
+      editingProduct.folderPath
+    );
     setEditingProduct(null);
   };
 
@@ -460,8 +472,8 @@ function App() {
   };
 
   const saveProjectEdit = () => {
-    if (!editingProject || !editingProject.name.trim()) return;
-    updateProject(editingProject.id, editingProject.name);
+    if (!editingProject || !editingProject.projectId.trim() || !editingProject.name.trim()) return;
+    updateProject(editingProject.id, editingProject.projectId, editingProject.name);
     setEditingProject(null);
   };
 
@@ -570,6 +582,18 @@ function App() {
           }}
         >
           <label>
+            Product ID
+            <input
+              value={editingProduct.productId}
+              onChange={(event) =>
+                setEditingProduct((prev) =>
+                  prev ? { ...prev, productId: event.target.value } : prev
+                )
+              }
+              placeholder="001"
+            />
+          </label>
+          <label>
             Product name
             <input
               value={editingProduct.name}
@@ -618,7 +642,11 @@ function App() {
             </button>
             <button
               className="secondary-btn"
-              disabled={!editingProduct.name.trim() || !editingProduct.folderPath.trim()}
+              disabled={
+                !editingProduct.productId.trim() ||
+                !editingProduct.name.trim() ||
+                !editingProduct.folderPath.trim()
+              }
               type="submit"
             >
               Save product
@@ -656,6 +684,18 @@ function App() {
             saveProjectEdit();
           }}
         >
+          <label>
+            Project ID
+            <input
+              value={editingProject.projectId}
+              onChange={(event) =>
+                setEditingProject((prev) =>
+                  prev ? { ...prev, projectId: event.target.value } : prev
+                )
+              }
+              placeholder="001"
+            />
+          </label>
           <label>
             Project name
             <input
@@ -699,7 +739,11 @@ function App() {
             <button className="ghost-btn" onClick={() => setEditingProject(null)} type="button">
               Cancel
             </button>
-            <button className="secondary-btn" disabled={!editingProject.name.trim()} type="submit">
+            <button
+              className="secondary-btn"
+              disabled={!editingProject.projectId.trim() || !editingProject.name.trim()}
+              type="submit"
+            >
               Save project
             </button>
           </div>

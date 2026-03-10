@@ -44,7 +44,8 @@ interface DeleteProjectPayload {
 }
 
 interface UpdateProjectPayload {
-  projectId: string;
+  projectRef: string;
+  projectCode: string;
   name: string;
 }
 
@@ -53,7 +54,8 @@ interface DeleteProductPayload {
 }
 
 interface UpdateProductPayload {
-  productId: string;
+  productRef: string;
+  productCode: string;
   name: string;
   folderPath: string;
 }
@@ -258,16 +260,17 @@ export const updateProjectDetails = (
   state: AppState,
   payload: UpdateProjectPayload
 ): AppState => {
-  const project = state.projects.find((candidate) => candidate.id === payload.projectId);
+  const project = state.projects.find((candidate) => candidate.id === payload.projectRef);
   if (!project) return state;
 
   return {
     ...state,
     projects: sortById(
       state.projects.map((candidate) =>
-        candidate.id === payload.projectId
+        candidate.id === payload.projectRef
           ? {
               ...candidate,
+              projectId: padProjectOrProductId(payload.projectCode),
               name: payload.name.trim()
             }
           : candidate
@@ -296,16 +299,17 @@ export const updateProductDetails = (
   state: AppState,
   payload: UpdateProductPayload
 ): AppState => {
-  const product = state.products.find((candidate) => candidate.id === payload.productId);
+  const product = state.products.find((candidate) => candidate.id === payload.productRef);
   if (!product) return state;
 
   return {
     ...state,
     products: sortById(
       state.products.map((candidate) =>
-        candidate.id === payload.productId
+        candidate.id === payload.productRef
           ? {
               ...candidate,
+              productId: padProjectOrProductId(payload.productCode),
               name: payload.name.trim(),
               folderPath: payload.folderPath.trim()
             }
@@ -547,14 +551,18 @@ export const useAppStore = () => {
   const addProject = (projectId: string, name: string) =>
     dispatch({ type: "CREATE_PROJECT", payload: { projectId, name } });
 
-  const updateProject = (projectId: string, name: string) =>
-    dispatch({ type: "UPDATE_PROJECT", payload: { projectId, name } });
+  const updateProject = (projectRef: string, projectCode: string, name: string) =>
+    dispatch({ type: "UPDATE_PROJECT", payload: { projectRef, projectCode, name } });
 
   const addProduct = (projectId: string, productId: string, name: string, folderPath: string) =>
     dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name, folderPath } });
 
-  const updateProduct = (productId: string, name: string, folderPath: string) =>
-    dispatch({ type: "UPDATE_PRODUCT", payload: { productId, name, folderPath } });
+  const updateProduct = (
+    productRef: string,
+    productCode: string,
+    name: string,
+    folderPath: string
+  ) => dispatch({ type: "UPDATE_PRODUCT", payload: { productRef, productCode, name, folderPath } });
 
   const deleteProject = (projectId: string) =>
     dispatch({ type: "DELETE_PROJECT", payload: { projectId } });

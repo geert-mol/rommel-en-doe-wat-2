@@ -235,7 +235,8 @@ describe("updateProductDetails", () => {
     };
 
     const result = updateProductDetails(state, {
-      productId: "product-1",
+      productRef: "product-1",
+      productCode: "007",
       name: "Desk XL",
       folderPath: "D:/Products/Desk XL"
     });
@@ -244,7 +245,7 @@ describe("updateProductDetails", () => {
       {
         id: "product-1",
         projectId: "project-1",
-        productId: "001",
+        productId: "007",
         name: "Desk XL",
         folderPath: "D:/Products/Desk XL"
       }
@@ -263,11 +264,12 @@ describe("updateProjectDetails", () => {
     };
 
     const result = updateProjectDetails(state, {
-      projectId: "project-1",
+      projectRef: "project-1",
+      projectCode: "009",
       name: "Alpha Prime"
     });
 
-    expect(result.projects).toEqual([{ id: "project-1", projectId: "001", name: "Alpha Prime" }]);
+    expect(result.projects).toEqual([{ id: "project-1", projectId: "009", name: "Alpha Prime" }]);
     expect(result.selectedProjectId).toBe("project-1");
   });
 });
