@@ -184,7 +184,6 @@ describe("deleteVersionAndCleanup", () => {
 describe("deleteProductAndCleanup", () => {
   it("deletes the product, its elements, and clears the product selection", () => {
     const state: AppState = {
-      settings: { defaultRootPath: "C:/Engineering" },
       projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
       products: [
         { id: "product-1", projectId: "project-1", productId: "001", name: "Desk" },
@@ -218,7 +217,6 @@ describe("deleteProductAndCleanup", () => {
 describe("deleteProjectAndCleanup", () => {
   it("deletes the project, its products, its elements, and clears current selection", () => {
     const state: AppState = {
-      settings: { defaultRootPath: "C:/Engineering" },
       projects: [
         { id: "project-1", projectId: "001", name: "Alpha" },
         { id: "project-2", projectId: "002", name: "Beta" }

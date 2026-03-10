@@ -6,15 +6,10 @@ import path from "node:path";
 type ReleaseState = "PT" | "PR" | "RL" | "RR";
 type ElementType = "MM" | "HA" | "SA" | "PA";
 
-interface AppSettings {
-  defaultRootPath: string;
-}
-
 interface Project {
   id: string;
   projectId: string;
   name: string;
-  rootPath?: string;
 }
 
 interface Product {
@@ -54,7 +49,6 @@ interface EngineeringElement {
 }
 
 interface AppState {
-  settings: AppSettings;
   projects: Project[];
   products: Product[];
   elements: EngineeringElement[];
@@ -121,12 +115,26 @@ interface MetaRow {
   value: string;
 }
 
-const createInitialState = (): AppState => ({
-  settings: { defaultRootPath: "C:/Engineering" },
-  projects: [],
-  products: [],
-  elements: []
-});
+const formatFolderCode = (value: string): string => {
+  const cleaned = value.trim().replace(/\D/g, "");
+  if (cleaned.length === 0) return "0000";
+  return cleaned.padStart(4, "0");
+};
+
+const deriveLegacyProductFolder = (
+  rootPath: string | null,
+  projectCode: string,
+  projectName: string,
+  productCode: string,
+  productName: string
+): string | undefined => {
+  const trimmedRoot = rootPath?.trim().replace(/[\\/]+$/, "");
+  if (!trimmedRoot) return undefined;
+
+  const projectFolder = `${formatFolderCode(projectCode)} - ${projectName}`;
+  const productFolder = `${formatFolderCode(productCode)}-${productName}`;
+  return `${trimmedRoot}/${projectFolder}/${productFolder}/03. Engineering/3D Modellen`;
+};
 
 const sanitizeElementParents = (elements: EngineeringElement[]): EngineeringElement[] => {
   const byId = new Map(elements.map((element) => [element.id, element]));
@@ -307,16 +315,6 @@ const getDatabase = (): Database.Database => {
     }
   }
 
-  database
-    .prepare(
-      `
-        INSERT INTO settings (id, default_root_path)
-        VALUES (1, ?)
-        ON CONFLICT(id) DO NOTHING
-      `
-    )
-    .run(createInitialState().settings.defaultRootPath);
-
   return database;
 };
 
@@ -330,14 +328,6 @@ const saveStateTxn = (db: Database.Database) =>
     db.prepare("DELETE FROM elements").run();
     db.prepare("DELETE FROM products").run();
     db.prepare("DELETE FROM projects").run();
-
-    db.prepare(
-      `
-        INSERT INTO settings (id, default_root_path)
-        VALUES (1, ?)
-        ON CONFLICT(id) DO UPDATE SET default_root_path = excluded.default_root_path
-      `
-    ).run(state.settings.defaultRootPath);
 
     const projectStatement = db.prepare(
       `
@@ -428,7 +418,7 @@ const saveStateTxn = (db: Database.Database) =>
         id: project.id,
         project_code: project.projectId,
         name: project.name,
-        root_path: project.rootPath ?? null
+        root_path: null
       });
     }
 
@@ -559,6 +549,7 @@ export const loadState = (): AppState => {
     .all() as VersionRow[];
   const metaRows = db.prepare("SELECT key, value FROM meta").all() as MetaRow[];
   const meta = new Map(metaRows.map((row) => [row.key, row.value]));
+  const projectById = new Map(projects.map((project) => [project.id, project]));
 
   const versionsByConceptId = new Map<string, ElementVersion[]>();
   for (const version of versions) {
@@ -593,21 +584,25 @@ export const loadState = (): AppState => {
   }
 
   return {
-    settings: {
-      defaultRootPath: settings?.default_root_path ?? createInitialState().settings.defaultRootPath
-    },
     projects: projects.map((project) => ({
       id: project.id,
       projectId: project.project_code,
-      name: project.name,
-      rootPath: project.root_path ?? undefined
+      name: project.name
     })),
     products: products.map((product) => ({
       id: product.id,
       projectId: product.project_ref,
       productId: product.product_code,
       name: product.name,
-      folderPath: product.folder_path ?? undefined
+      folderPath:
+        product.folder_path ??
+        deriveLegacyProductFolder(
+          projectById.get(product.project_ref)?.root_path ?? settings?.default_root_path ?? null,
+          projectById.get(product.project_ref)?.project_code ?? "",
+          projectById.get(product.project_ref)?.name ?? "",
+          product.product_code,
+          product.name
+        )
     })),
     elements: sanitizeElementParents(elements.map((element) => ({
       id: element.id,

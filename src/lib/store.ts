@@ -49,8 +49,7 @@ interface DeleteProductPayload {
 
 type Action =
   | { type: "LOAD"; payload: AppState }
-  | { type: "SET_DEFAULT_ROOT"; payload: string }
-  | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string; rootPath?: string } }
+  | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string } }
   | { type: "SELECT_PROJECT"; payload: string }
   | { type: "DELETE_PROJECT"; payload: DeleteProjectPayload }
   | {
@@ -262,14 +261,11 @@ const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case "LOAD":
       return action.payload;
-    case "SET_DEFAULT_ROOT":
-      return { ...state, settings: { defaultRootPath: action.payload } };
     case "CREATE_PROJECT": {
       const project: Project = {
         id: crypto.randomUUID(),
         projectId: padProjectOrProductId(action.payload.projectId),
-        name: action.payload.name.trim(),
-        rootPath: action.payload.rootPath?.trim() || undefined
+        name: action.payload.name.trim()
       };
       return {
         ...state,
@@ -486,8 +482,8 @@ export const useAppStore = () => {
     [state.elements, state.selectedProjectId, state.selectedProductId]
   );
 
-  const addProject = (projectId: string, name: string, rootPath?: string) =>
-    dispatch({ type: "CREATE_PROJECT", payload: { projectId, name, rootPath } });
+  const addProject = (projectId: string, name: string) =>
+    dispatch({ type: "CREATE_PROJECT", payload: { projectId, name } });
 
   const addProduct = (projectId: string, productId: string, name: string, folderPath: string) =>
     dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name, folderPath } });

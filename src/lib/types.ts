@@ -16,15 +16,10 @@ export type VersionExports = Partial<Record<VersionExportKind, true>>;
 
 export type VersionKind = "major" | "minor";
 
-export interface AppSettings {
-  defaultRootPath: string;
-}
-
 export interface Project {
   id: string;
   projectId: string;
   name: string;
-  rootPath?: string;
 }
 
 export interface Product {
@@ -62,7 +57,6 @@ export interface EngineeringElement {
 }
 
 export interface AppState {
-  settings: AppSettings;
   projects: Project[];
   products: Product[];
   elements: EngineeringElement[];

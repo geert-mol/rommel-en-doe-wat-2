@@ -3,7 +3,6 @@ import { buildProjectExportPayload } from "../src/lib/export";
 import type { AppState } from "../src/lib/types";
 
 const state: AppState = {
-  settings: { defaultRootPath: "D:/Vault" },
   projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
   products: [
     {

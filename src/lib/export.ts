@@ -44,8 +44,7 @@ export interface ProjectExportPayload {
 const buildProductSheet = (
   project: Project,
   product: Product,
-  elements: EngineeringElement[],
-  defaultRootPath: string
+  elements: EngineeringElement[]
 ): ProductExportSheet => {
   const parentMap = new Map(elements.map((element) => [element.id, element]));
   const ordered = buildUsageOrder(elements);
@@ -80,13 +79,7 @@ const buildProductSheet = (
             versionLabel: formatVersionLabel(version.majorVersion, version.minorVersion),
             releaseState: version.releaseState,
             fileName,
-            filePath: buildSuggestedFilePath(
-              fileName,
-              element,
-              project,
-              product,
-              defaultRootPath
-            ),
+            filePath: buildSuggestedFilePath(fileName, element, project, product),
             createdAt: version.createdAt
           };
         })
@@ -121,8 +114,7 @@ export const buildProjectExportPayload = (
       buildProductSheet(
         project,
         product,
-        state.elements.filter((element) => element.productId === product.id),
-        state.settings.defaultRootPath
+        state.elements.filter((element) => element.productId === product.id)
       )
     )
   };

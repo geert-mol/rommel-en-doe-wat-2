@@ -58,12 +58,12 @@ describe("filename tools", () => {
       concepts: []
     };
 
-    expect(buildSuggestedFilePath(fileName, element, project, product, "C:/Engineering")).toBe(
+    expect(buildSuggestedFilePath(fileName, element, project, product)).toBe(
       "D:/Products/Balcony Kit/Models/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
     );
   });
 
-  it("falls back to the legacy folder structure when a product has no folder path", () => {
+  it("falls back to the bare filename when a product has no folder path", () => {
     const project: Project = {
       id: "p",
       projectId: "013",
@@ -87,15 +87,7 @@ describe("filename tools", () => {
     };
 
     expect(
-      buildSuggestedFilePath(
-        "PT_013-009_A_MM_00_balkon-mini-vijver_v1",
-        element,
-        project,
-        product,
-        "C:/Engineering"
-      )
-    ).toBe(
-      "C:/Engineering/0013 - Aquaframe/0009-Balcony Kit/03. Engineering/3D Modellen/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
-    );
+      buildSuggestedFilePath("PT_013-009_A_MM_00_balkon-mini-vijver_v1", element, project, product)
+    ).toBe("PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt");
   });
 });

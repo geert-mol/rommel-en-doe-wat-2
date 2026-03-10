@@ -18,7 +18,6 @@ interface ElementTreeProps {
   elements: EngineeringElement[];
   project: Project;
   product: Product;
-  defaultRootPath: string;
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onSetReleaseState: (
@@ -53,7 +52,6 @@ export const ElementTree = ({
   elements,
   project,
   product,
-  defaultRootPath,
   onAddConcept,
   onAddVersion,
   onSetReleaseState
@@ -92,7 +90,6 @@ export const ElementTree = ({
           tree={tree}
           project={project}
           product={product}
-          defaultRootPath={defaultRootPath}
           onAddConcept={onAddConcept}
           onAddVersion={onAddVersion}
           onSetReleaseState={onSetReleaseState}
@@ -108,7 +105,6 @@ interface ElementNodeProps {
   tree: Map<string | undefined, EngineeringElement[]>;
   project: Project;
   product: Product;
-  defaultRootPath: string;
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onSetReleaseState: (
@@ -125,7 +121,6 @@ const ElementNode = ({
   tree,
   project,
   product,
-  defaultRootPath,
   onAddConcept,
   onAddVersion,
   onSetReleaseState
@@ -196,13 +191,7 @@ const ElementNode = ({
                     majorVersion: version.majorVersion,
                     minorVersion: version.minorVersion
                   });
-                  const suggestedPath = buildSuggestedFilePath(
-                    fileName,
-                    node,
-                    project,
-                    product,
-                    defaultRootPath
-                  );
+                  const suggestedPath = buildSuggestedFilePath(fileName, node, project, product);
 
                   return (
                     <article key={version.id} className="version">
@@ -264,7 +253,6 @@ const ElementNode = ({
               tree={tree}
               project={project}
               product={product}
-              defaultRootPath={defaultRootPath}
               onAddConcept={onAddConcept}
               onAddVersion={onAddVersion}
               onSetReleaseState={onSetReleaseState}

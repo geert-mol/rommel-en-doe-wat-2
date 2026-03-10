@@ -1,10 +1,4 @@
-import type {
-  ElementType,
-  EngineeringElement,
-  Product,
-  Project,
-  ReleaseState
-} from "./types";
+import type { ElementType, EngineeringElement, Product, Project, ReleaseState } from "./types";
 
 export interface FilenameParts {
   state: ReleaseState;
@@ -20,12 +14,6 @@ export interface FilenameParts {
 
 export const padProjectOrProductId = (value: string): string =>
   value.trim().replace(/\D/g, "").padStart(3, "0").slice(-3);
-
-const formatFolderCode = (value: string): string => {
-  const cleaned = value.trim().replace(/\D/g, "");
-  if (cleaned.length === 0) return "0000";
-  return cleaned.padStart(4, "0");
-};
 
 export const normalizePartNumber = (value: string): string => {
   const cleaned = value.trim().replace(/\D/g, "");
@@ -63,24 +51,16 @@ export const extensionForType = (type: ElementType): string => {
   return ".sldasm";
 };
 
-export const resolveRootPath = (project: Project, defaultRootPath: string): string =>
-  project.rootPath?.trim() || defaultRootPath.trim();
-
 export const buildSuggestedFilePath = (
   fileName: string,
   element: EngineeringElement,
-  project: Project,
-  product: Product,
-  defaultRootPath: string
+  _project: Project,
+  product: Product
 ): string => {
   const ext = extensionForType(element.type);
   const explicitProductFolder = product.folderPath?.trim().replace(/[\\/]+$/, "");
   if (explicitProductFolder) {
     return `${explicitProductFolder}/${fileName}${ext}`;
   }
-
-  const root = resolveRootPath(project, defaultRootPath).replace(/[\\/]+$/, "");
-  const projectFolder = `${formatFolderCode(project.projectId)} - ${project.name}`;
-  const productFolder = `${formatFolderCode(product.productId)}-${product.name}`;
-  return `${root}/${projectFolder}/${productFolder}/03. Engineering/3D Modellen/${fileName}${ext}`;
+  return `${fileName}${ext}`;
 };

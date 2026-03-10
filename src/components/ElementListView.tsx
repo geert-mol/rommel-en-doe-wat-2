@@ -21,7 +21,6 @@ interface ElementListViewProps {
   elements: EngineeringElement[];
   project: Project;
   product: Product;
-  defaultRootPath: string;
   onAddConcept: (elementId: string) => void;
   onAddVersion: (elementId: string, conceptId: string, kind: "major" | "minor") => void;
   onDeleteVersion: (elementId: string, conceptId: string, versionId: string) => void;
@@ -446,7 +445,6 @@ export const ElementListView = ({
   elements,
   project,
   product,
-  defaultRootPath,
   onAddConcept,
   onAddVersion,
   onDeleteVersion,
@@ -498,7 +496,7 @@ export const ElementListView = ({
           majorVersion: version.majorVersion,
           minorVersion: version.minorVersion
         });
-        const realPath = buildSuggestedFilePath(fileName, element, project, product, defaultRootPath);
+        const realPath = buildSuggestedFilePath(fileName, element, project, product);
         const parent = usage.parentId ? parentMap.get(usage.parentId) : undefined;
         const rowIndex = rowsDraft.length;
 
@@ -547,7 +545,7 @@ export const ElementListView = ({
       segmentsByRow: segments,
       usageRowIndicesByElementId: usageRowIndicesByElementIdDraft
     };
-  }, [defaultRootPath, elements, product, project]);
+  }, [elements, product, project]);
 
   const historyElement = useMemo(
     () => elements.find((element) => element.id === historyState?.elementId) ?? null,
@@ -588,12 +586,11 @@ export const ElementListView = ({
           fileName,
           historyElement,
           project,
-          product,
-          defaultRootPath
+          product
         )
       };
     });
-  }, [defaultRootPath, historyConcept, historyElement, product, project]);
+  }, [historyConcept, historyElement, product, project]);
 
   const parentEditElement = useMemo(
     () => elements.find((element) => element.id === parentEdit?.elementId) ?? null,

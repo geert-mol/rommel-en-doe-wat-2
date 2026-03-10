@@ -5,7 +5,6 @@ import type { AppState } from "../src/lib/types";
 describe("parseAppState", () => {
   it("accepts persisted state with nested concept/version data", () => {
     const state: AppState = {
-      settings: { defaultRootPath: "D:/Engineering" },
       projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
       products: [
         {
@@ -52,24 +51,30 @@ describe("parseAppState", () => {
   it("falls back to the empty state when persisted data is malformed", () => {
     expect(
       coerceAppState({
-        settings: { defaultRootPath: "C:/Engineering" },
         projects: "broken"
       })
     ).toEqual(createInitialAppState());
   });
 
-  it("accepts products without folder paths for legacy saved state", () => {
+  it("derives product folders from legacy root settings", () => {
     expect(
       parseAppState({
         settings: { defaultRootPath: "C:/Engineering" },
-        projects: [],
+        projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
         products: [{ id: "product-1", projectId: "project-1", productId: "009", name: "Legacy" }],
         elements: []
       })
     ).toEqual({
-      settings: { defaultRootPath: "C:/Engineering" },
-      projects: [],
-      products: [{ id: "product-1", projectId: "project-1", productId: "009", name: "Legacy" }],
+      projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
+      products: [
+        {
+          id: "product-1",
+          projectId: "project-1",
+          productId: "009",
+          name: "Legacy",
+          folderPath: "C:/Engineering/0013 - Aquaframe/0009-Legacy/03. Engineering/3D Modellen"
+        }
+      ],
       elements: []
     });
   });
@@ -77,7 +82,6 @@ describe("parseAppState", () => {
   it("migrates legacy parentElementId into parentElementIds", () => {
     expect(
       parseAppState({
-        settings: { defaultRootPath: "C:/Engineering" },
         projects: [],
         products: [],
         elements: [
@@ -103,7 +107,6 @@ describe("parseAppState", () => {
         ]
       })
     ).toEqual({
-      settings: { defaultRootPath: "C:/Engineering" },
       projects: [],
       products: [],
       elements: [
@@ -134,7 +137,6 @@ describe("parseAppState", () => {
   it("drops invalid parent references while parsing", () => {
     expect(
       parseAppState({
-        settings: { defaultRootPath: "C:/Engineering" },
         projects: [],
         products: [],
         elements: [
@@ -161,7 +163,6 @@ describe("parseAppState", () => {
         ]
       })
     ).toEqual({
-      settings: { defaultRootPath: "C:/Engineering" },
       projects: [],
       products: [],
       elements: [
@@ -192,7 +193,6 @@ describe("parseAppState", () => {
   it("keeps valid version export flags and defaults missing ones to empty", () => {
     expect(
       parseAppState({
-        settings: { defaultRootPath: "C:/Engineering" },
         projects: [],
         products: [],
         elements: [
@@ -235,7 +235,6 @@ describe("parseAppState", () => {
         ]
       })
     ).toEqual({
-      settings: { defaultRootPath: "C:/Engineering" },
       projects: [],
       products: [],
       elements: [

@@ -11,11 +11,31 @@ import {
 export const STORAGE_KEY = "rnd-pdm-state-v1";
 
 export const createInitialAppState = (): AppState => ({
-  settings: { defaultRootPath: "C:/Engineering" },
   projects: [],
   products: [],
   elements: []
 });
+
+const formatFolderCode = (value: string): string => {
+  const cleaned = value.trim().replace(/\D/g, "");
+  if (cleaned.length === 0) return "0000";
+  return cleaned.padStart(4, "0");
+};
+
+const deriveLegacyProductFolder = (
+  rootPath: string | undefined,
+  projectId: string,
+  projectName: string,
+  productId: string,
+  productName: string
+): string | undefined => {
+  const trimmedRoot = rootPath?.trim().replace(/[\\/]+$/, "");
+  if (!trimmedRoot) return undefined;
+
+  const projectFolder = `${formatFolderCode(projectId)} - ${projectName}`;
+  const productFolder = `${formatFolderCode(productId)}-${productName}`;
+  return `${trimmedRoot}/${projectFolder}/${productFolder}/03. Engineering/3D Modellen`;
+};
 
 const sanitizeElementParents = (elements: AppState["elements"]): AppState["elements"] => {
   const byId = new Map(elements.map((element) => [element.id, element]));
@@ -54,12 +74,16 @@ const normalizeVersionExports = (value: unknown): VersionExports | undefined => 
 
 export const parseAppState = (value: unknown): AppState | null => {
   if (!isRecord(value)) return null;
-  if (!isRecord(value.settings)) return null;
-  if (typeof value.settings.defaultRootPath !== "string") return null;
   if (!Array.isArray(value.projects) || !Array.isArray(value.products) || !Array.isArray(value.elements)) {
     return null;
   }
 
+  const legacyDefaultRootPath =
+    isRecord(value.settings) && typeof value.settings.defaultRootPath === "string"
+      ? value.settings.defaultRootPath
+      : undefined;
+
+  const legacyProjectRootById = new Map<string, string | undefined>();
   const projects = value.projects.map((project) => {
     if (!isRecord(project)) return null;
     if (typeof project.id !== "string") return null;
@@ -67,13 +91,17 @@ export const parseAppState = (value: unknown): AppState | null => {
     if (typeof project.name !== "string") return null;
     if (project.rootPath !== undefined && typeof project.rootPath !== "string") return null;
 
+    legacyProjectRootById.set(project.id, project.rootPath);
+
     return {
       id: project.id,
       projectId: project.projectId,
-      name: project.name,
-      rootPath: project.rootPath
+      name: project.name
     };
   });
+
+  if (projects.some((project) => project === null)) return null;
+  const projectById = new Map((projects as AppState["projects"]).map((project) => [project.id, project]));
 
   const products = value.products.map((product) => {
     if (!isRecord(product)) return null;
@@ -88,7 +116,15 @@ export const parseAppState = (value: unknown): AppState | null => {
       projectId: product.projectId,
       productId: product.productId,
       name: product.name,
-      folderPath: product.folderPath
+      folderPath:
+        product.folderPath ??
+        deriveLegacyProductFolder(
+          legacyProjectRootById.get(product.projectId) ?? legacyDefaultRootPath,
+          projectById.get(product.projectId)?.projectId ?? "",
+          projectById.get(product.projectId)?.name ?? "",
+          product.productId,
+          product.name
+        )
     };
   });
 
@@ -161,7 +197,6 @@ export const parseAppState = (value: unknown): AppState | null => {
     };
   });
 
-  if (projects.some((project) => project === null)) return null;
   if (products.some((product) => product === null)) return null;
   if (elements.some((element) => element === null)) return null;
 
@@ -171,9 +206,6 @@ export const parseAppState = (value: unknown): AppState | null => {
   const sanitizedElements = sanitizeElementParents(elements as AppState["elements"]);
 
   return {
-    settings: {
-      defaultRootPath: value.settings.defaultRootPath
-    },
     projects,
     products,
     elements: sanitizedElements,

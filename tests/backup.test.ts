@@ -5,9 +5,16 @@ import type { AppState } from "../src/lib/types";
 describe("app backups", () => {
   it("round-trips valid app state through the backup format", () => {
     const state: AppState = {
-      settings: { defaultRootPath: "D:/Engineering" },
       projects: [{ id: "project-1", projectId: "001", name: "Bridge" }],
-      products: [{ id: "product-1", projectId: "project-1", productId: "001", name: "Deck" }],
+      products: [
+        {
+          id: "product-1",
+          projectId: "project-1",
+          productId: "001",
+          name: "Deck",
+          folderPath: "D:/Bridge/Deck"
+        }
+      ],
       elements: [
         {
           id: "element-1",
@@ -54,7 +61,7 @@ describe("app backups", () => {
           format: "rnd-pdm-backup",
           version: 1,
           createdAt: "2026-03-06T11:30:00.000Z",
-          state: { settings: { defaultRootPath: "C:/Engineering" }, projects: "broken" }
+          state: { projects: "broken" }
         })
       )
     ).toThrow("Backup file contains invalid app data.");

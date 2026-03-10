@@ -80,8 +80,7 @@ function App() {
 
   const [projectForm, setProjectForm] = useState({
     projectId: "001",
-    name: "",
-    rootPath: ""
+    name: ""
   });
   const [productForm, setProductForm] = useState({
     productId: "001",
@@ -276,23 +275,9 @@ function App() {
     });
   };
 
-  const browseForDefaultRoot = async () => {
-    const selectedPath = await pickDirectory(state.settings.defaultRootPath);
-    if (!selectedPath) return;
-    dispatch({ type: "SET_DEFAULT_ROOT", payload: selectedPath });
-  };
-
-  const browseForProjectRoot = async () => {
-    const selectedPath = await pickDirectory(projectForm.rootPath || state.settings.defaultRootPath);
-    if (!selectedPath) return;
-    setProjectForm((prev) => ({ ...prev, rootPath: selectedPath }));
-  };
-
   const browseForProductFolder = async () => {
     if (!selectedProject) return;
-    const selectedPath = await pickDirectory(
-      productForm.folderPath || selectedProject.rootPath || state.settings.defaultRootPath
-    );
+    const selectedPath = await pickDirectory(productForm.folderPath || undefined);
     if (!selectedPath) return;
     setProductForm((prev) => ({ ...prev, folderPath: selectedPath }));
   };
@@ -612,38 +597,11 @@ function App() {
         </div>
         <div className="settings-grid">
           <section className="settings-card">
-            <h3>Storage</h3>
-            <label>
-              Default root folder
-              <div className="field-action">
-                <input
-                  value={state.settings.defaultRootPath}
-                  onChange={(event) =>
-                    dispatch({ type: "SET_DEFAULT_ROOT", payload: event.target.value })
-                  }
-                  placeholder="C:/Engineering"
-                />
-                {desktopApp && (
-                  <button
-                    className="ghost-btn"
-                    onClick={() => void browseForDefaultRoot()}
-                    type="button"
-                  >
-                    Browse
-                  </button>
-                )}
-              </div>
-            </label>
-            <p className="helper-text">
-              Used as fallback when a project has no custom root override.
-            </p>
-            {storageError && <p className="helper-text error-text">{storageError}</p>}
-          </section>
-          <section className="settings-card">
             <h3>Backup</h3>
             <p className="helper-text settings-copy">
               Save and restore app data. SolidWorks files on disk stay outside this backup.
             </p>
+            {storageError && <p className="helper-text error-text">{storageError}</p>}
             {desktopApp && (
               <div className="backup-actions">
                 <button
@@ -747,12 +705,11 @@ function App() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!projectForm.name.trim()) return;
-              addProject(projectForm.projectId, projectForm.name, projectForm.rootPath);
+              addProject(projectForm.projectId, projectForm.name);
               setProjectForm((prev) => ({
                 ...prev,
                 projectId: padProjectOrProductId(String(Number(prev.projectId) + 1)),
-                name: "",
-                rootPath: ""
+                name: ""
               }));
             }}
           >
@@ -768,20 +725,6 @@ function App() {
               onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder="Project name"
             />
-            <div className="field-action">
-              <input
-                value={projectForm.rootPath}
-                onChange={(event) =>
-                  setProjectForm((prev) => ({ ...prev, rootPath: event.target.value }))
-                }
-                placeholder="Optional root override"
-              />
-              {desktopApp && (
-                <button className="ghost-btn" onClick={() => void browseForProjectRoot()} type="button">
-                  Browse
-                </button>
-              )}
-            </div>
             <button type="submit">Create project</button>
           </form>
 
@@ -929,7 +872,7 @@ function App() {
           {isHydrating ? (
             <section className="hero">
               <h2>Loading workspace</h2>
-              <p>Restoring projects, products, tree state, and settings.</p>
+              <p>Restoring projects, products, tree state, and app data.</p>
             </section>
           ) : !selectedProject || !selectedProduct ? (
             <section className="hero">
@@ -1043,7 +986,6 @@ function App() {
                   elements={selectedElements}
                   project={selectedProject}
                   product={selectedProduct}
-                  defaultRootPath={state.settings.defaultRootPath}
                   onAddConcept={(elementId) =>
                     dispatch({ type: "ADD_CONCEPT", payload: { elementId } })
                   }
