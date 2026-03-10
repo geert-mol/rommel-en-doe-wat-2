@@ -22,6 +22,7 @@ interface Product {
   projectId: string;
   productId: string;
   name: string;
+  folderPath?: string;
 }
 
 interface ElementVersion {
@@ -73,6 +74,7 @@ interface ProductRow {
   project_ref: string;
   product_code: string;
   name: string;
+  folder_path: string | null;
 }
 
 interface ElementRow {
@@ -195,6 +197,7 @@ const getDatabase = (): Database.Database => {
       project_ref TEXT NOT NULL,
       product_code TEXT NOT NULL,
       name TEXT NOT NULL,
+      folder_path TEXT,
       FOREIGN KEY (project_ref) REFERENCES projects(id) ON DELETE CASCADE
     );
 
@@ -254,6 +257,11 @@ const getDatabase = (): Database.Database => {
       (column) => column.name
     )
   );
+  const productColumns = new Set(
+    (database.prepare("PRAGMA table_info(products)").all() as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+  );
   const missingVersionColumns = [
     ["has_solidworks_drawing", "INTEGER NOT NULL DEFAULT 0"],
     ["has_step", "INTEGER NOT NULL DEFAULT 0"],
@@ -264,6 +272,10 @@ const getDatabase = (): Database.Database => {
 
   for (const [columnName, columnDefinition] of missingVersionColumns) {
     database.exec(`ALTER TABLE versions ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
+
+  if (!productColumns.has("folder_path")) {
+    database.exec("ALTER TABLE products ADD COLUMN folder_path TEXT");
   }
 
   const parentLinkCount = (
@@ -335,8 +347,8 @@ const saveStateTxn = (db: Database.Database) =>
     );
     const productStatement = db.prepare(
       `
-        INSERT INTO products (id, project_ref, product_code, name)
-        VALUES (@id, @project_ref, @product_code, @name)
+        INSERT INTO products (id, project_ref, product_code, name, folder_path)
+        VALUES (@id, @project_ref, @product_code, @name, @folder_path)
       `
     );
     const elementStatement = db.prepare(
@@ -425,7 +437,8 @@ const saveStateTxn = (db: Database.Database) =>
         id: product.id,
         project_ref: product.projectId,
         product_code: product.productId,
-        name: product.name
+        name: product.name,
+        folder_path: product.folderPath ?? null
       });
     }
 
@@ -494,7 +507,7 @@ export const loadState = (): AppState => {
     .all() as ProjectRow[];
   const products = db
     .prepare(
-      "SELECT id, project_ref, product_code, name FROM products ORDER BY name COLLATE NOCASE, product_code"
+      "SELECT id, project_ref, product_code, name, folder_path FROM products ORDER BY name COLLATE NOCASE, product_code"
     )
     .all() as ProductRow[];
   const elements = db
@@ -593,7 +606,8 @@ export const loadState = (): AppState => {
       id: product.id,
       projectId: product.project_ref,
       productId: product.product_code,
-      name: product.name
+      name: product.name,
+      folderPath: product.folder_path ?? undefined
     })),
     elements: sanitizeElementParents(elements.map((element) => ({
       id: element.id,

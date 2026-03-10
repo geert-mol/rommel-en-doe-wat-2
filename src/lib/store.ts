@@ -53,7 +53,10 @@ type Action =
   | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string; rootPath?: string } }
   | { type: "SELECT_PROJECT"; payload: string }
   | { type: "DELETE_PROJECT"; payload: DeleteProjectPayload }
-  | { type: "CREATE_PRODUCT"; payload: { projectId: string; productId: string; name: string } }
+  | {
+      type: "CREATE_PRODUCT";
+      payload: { projectId: string; productId: string; name: string; folderPath: string };
+    }
   | { type: "SELECT_PRODUCT"; payload: string }
   | { type: "DELETE_PRODUCT"; payload: DeleteProductPayload }
   | {
@@ -287,7 +290,8 @@ const reducer = (state: AppState, action: Action): AppState => {
         id: crypto.randomUUID(),
         productId: padProjectOrProductId(action.payload.productId),
         projectId: action.payload.projectId,
-        name: action.payload.name.trim()
+        name: action.payload.name.trim(),
+        folderPath: action.payload.folderPath.trim()
       };
       return {
         ...state,
@@ -485,8 +489,8 @@ export const useAppStore = () => {
   const addProject = (projectId: string, name: string, rootPath?: string) =>
     dispatch({ type: "CREATE_PROJECT", payload: { projectId, name, rootPath } });
 
-  const addProduct = (projectId: string, productId: string, name: string) =>
-    dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name } });
+  const addProduct = (projectId: string, productId: string, name: string, folderPath: string) =>
+    dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name, folderPath } });
 
   const deleteProject = (projectId: string) =>
     dispatch({ type: "DELETE_PROJECT", payload: { projectId } });

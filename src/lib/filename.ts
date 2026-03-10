@@ -73,8 +73,13 @@ export const buildSuggestedFilePath = (
   product: Product,
   defaultRootPath: string
 ): string => {
-  const root = resolveRootPath(project, defaultRootPath).replace(/[\\/]+$/, "");
   const ext = extensionForType(element.type);
+  const explicitProductFolder = product.folderPath?.trim().replace(/[\\/]+$/, "");
+  if (explicitProductFolder) {
+    return `${explicitProductFolder}/${fileName}${ext}`;
+  }
+
+  const root = resolveRootPath(project, defaultRootPath).replace(/[\\/]+$/, "");
   const projectFolder = `${formatFolderCode(project.projectId)} - ${project.name}`;
   const productFolder = `${formatFolderCode(product.productId)}-${product.name}`;
   return `${root}/${projectFolder}/${productFolder}/03. Engineering/3D Modellen/${fileName}${ext}`;

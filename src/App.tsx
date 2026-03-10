@@ -85,7 +85,8 @@ function App() {
   });
   const [productForm, setProductForm] = useState({
     productId: "001",
-    name: ""
+    name: "",
+    folderPath: ""
   });
   const [elementForm, setElementForm] = useState({
     parentElementIds: [] as string[],
@@ -285,6 +286,15 @@ function App() {
     const selectedPath = await pickDirectory(projectForm.rootPath || state.settings.defaultRootPath);
     if (!selectedPath) return;
     setProjectForm((prev) => ({ ...prev, rootPath: selectedPath }));
+  };
+
+  const browseForProductFolder = async () => {
+    if (!selectedProject) return;
+    const selectedPath = await pickDirectory(
+      productForm.folderPath || selectedProject.rootPath || state.settings.defaultRootPath
+    );
+    if (!selectedPath) return;
+    setProductForm((prev) => ({ ...prev, folderPath: selectedPath }));
   };
 
   const exportSelectedProject = async () => {
@@ -829,12 +839,20 @@ function App() {
             className="compact-form"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!selectedProject || !productForm.name.trim()) return;
-              addProduct(selectedProject.id, productForm.productId, productForm.name);
+              if (!selectedProject || !productForm.name.trim() || !productForm.folderPath.trim()) {
+                return;
+              }
+              addProduct(
+                selectedProject.id,
+                productForm.productId,
+                productForm.name,
+                productForm.folderPath
+              );
               setProductForm((prev) => ({
                 ...prev,
                 productId: padProjectOrProductId(String(Number(prev.productId) + 1)),
-                name: ""
+                name: "",
+                folderPath: ""
               }));
             }}
           >
@@ -852,7 +870,25 @@ function App() {
               placeholder="Product name"
               disabled={!selectedProject}
             />
-            <button type="submit" disabled={!selectedProject}>
+            <div className="field-action">
+              <input
+                value={productForm.folderPath}
+                onChange={(event) =>
+                  setProductForm((prev) => ({ ...prev, folderPath: event.target.value }))
+                }
+                placeholder="Product folder"
+                disabled={!selectedProject}
+              />
+              {desktopApp && (
+                <button className="ghost-btn" onClick={() => void browseForProductFolder()} type="button">
+                  Browse
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={!selectedProject || !productForm.name.trim() || !productForm.folderPath.trim()}
+            >
               Create product
             </button>
           </form>

@@ -7,7 +7,15 @@ describe("parseAppState", () => {
     const state: AppState = {
       settings: { defaultRootPath: "D:/Engineering" },
       projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
-      products: [{ id: "product-1", projectId: "project-1", productId: "009", name: "Balcony Kit" }],
+      products: [
+        {
+          id: "product-1",
+          projectId: "project-1",
+          productId: "009",
+          name: "Balcony Kit",
+          folderPath: "D:/Products/Balcony Kit/Models"
+        }
+      ],
       elements: [
         {
           id: "element-1",
@@ -48,6 +56,22 @@ describe("parseAppState", () => {
         projects: "broken"
       })
     ).toEqual(createInitialAppState());
+  });
+
+  it("accepts products without folder paths for legacy saved state", () => {
+    expect(
+      parseAppState({
+        settings: { defaultRootPath: "C:/Engineering" },
+        projects: [],
+        products: [{ id: "product-1", projectId: "project-1", productId: "009", name: "Legacy" }],
+        elements: []
+      })
+    ).toEqual({
+      settings: { defaultRootPath: "C:/Engineering" },
+      projects: [],
+      products: [{ id: "product-1", projectId: "project-1", productId: "009", name: "Legacy" }],
+      elements: []
+    });
   });
 
   it("migrates legacy parentElementId into parentElementIds", () => {

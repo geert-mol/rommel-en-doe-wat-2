@@ -81,12 +81,14 @@ export const parseAppState = (value: unknown): AppState | null => {
     if (typeof product.projectId !== "string") return null;
     if (typeof product.productId !== "string") return null;
     if (typeof product.name !== "string") return null;
+    if (product.folderPath !== undefined && typeof product.folderPath !== "string") return null;
 
     return {
       id: product.id,
       projectId: product.projectId,
       productId: product.productId,
-      name: product.name
+      name: product.name,
+      folderPath: product.folderPath
     };
   });
 

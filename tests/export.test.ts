@@ -6,8 +6,20 @@ const state: AppState = {
   settings: { defaultRootPath: "D:/Vault" },
   projects: [{ id: "project-1", projectId: "013", name: "Aquaframe" }],
   products: [
-    { id: "product-1", projectId: "project-1", productId: "009", name: "Balcony Kit" },
-    { id: "product-2", projectId: "project-1", productId: "010", name: "Pump Module" }
+    {
+      id: "product-1",
+      projectId: "project-1",
+      productId: "009",
+      name: "Balcony Kit",
+      folderPath: "D:/Vault/Aquaframe/Balcony Kit/Models"
+    },
+    {
+      id: "product-2",
+      projectId: "project-1",
+      productId: "010",
+      name: "Pump Module",
+      folderPath: "D:/Vault/Aquaframe/Pump Module/Models"
+    }
   ],
   elements: [
     {
@@ -106,7 +118,7 @@ describe("buildProjectExportPayload", () => {
     expect(payload?.sheets[0].rows[1].versionLabel).toBe("v1-1");
     expect(payload?.sheets[0].rows[2].parentLabel).toBe("HA 00 frame");
     expect(payload?.sheets[1].rows[0].filePath).toContain(
-      "0013 - Aquaframe/0010-Pump Module/03. Engineering/3D Modellen/"
+      "D:/Vault/Aquaframe/Pump Module/Models/"
     );
   });
 

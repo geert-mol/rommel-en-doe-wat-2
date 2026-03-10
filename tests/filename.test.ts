@@ -44,12 +44,14 @@ describe("filename tools", () => {
       id: "pr",
       productId: "009",
       projectId: "p",
-      name: "Balcony Kit"
+      name: "Balcony Kit",
+      folderPath: "D:/Products/Balcony Kit/Models"
     };
     const element: EngineeringElement = {
       id: "e",
       projectId: "p",
       productId: "pr",
+      parentElementIds: [],
       type: "MM",
       partNumber: "00",
       descriptionSlug: "balkon-mini-vijver",
@@ -57,6 +59,42 @@ describe("filename tools", () => {
     };
 
     expect(buildSuggestedFilePath(fileName, element, project, product, "C:/Engineering")).toBe(
+      "D:/Products/Balcony Kit/Models/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
+    );
+  });
+
+  it("falls back to the legacy folder structure when a product has no folder path", () => {
+    const project: Project = {
+      id: "p",
+      projectId: "013",
+      name: "Aquaframe"
+    };
+    const product: Product = {
+      id: "pr",
+      productId: "009",
+      projectId: "p",
+      name: "Balcony Kit"
+    };
+    const element: EngineeringElement = {
+      id: "e",
+      projectId: "p",
+      productId: "pr",
+      parentElementIds: [],
+      type: "MM",
+      partNumber: "00",
+      descriptionSlug: "balkon-mini-vijver",
+      concepts: []
+    };
+
+    expect(
+      buildSuggestedFilePath(
+        "PT_013-009_A_MM_00_balkon-mini-vijver_v1",
+        element,
+        project,
+        product,
+        "C:/Engineering"
+      )
+    ).toBe(
       "C:/Engineering/0013 - Aquaframe/0009-Balcony Kit/03. Engineering/3D Modellen/PT_013-009_A_MM_00_balkon-mini-vijver_v1.sldprt"
     );
   });

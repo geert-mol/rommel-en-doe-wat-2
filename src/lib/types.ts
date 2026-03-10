@@ -32,6 +32,7 @@ export interface Product {
   productId: string;
   projectId: string;
   name: string;
+  folderPath?: string;
 }
 
 export interface ElementVersion {
