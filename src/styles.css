@@ -649,6 +649,11 @@ button:hover {
   vertical-align: middle;
   white-space: nowrap;
   background: #fffdf8;
+  transition: background 120ms ease;
+}
+
+.data-table tbody tr:hover td {
+  background: #f8f1e2;
 }
 
 .branch-cell {
@@ -658,6 +663,10 @@ button:hover {
   border-left: 0 !important;
   border-right: 1px solid #d8ceb7 !important;
   background: #fffdf8 !important;
+}
+
+.data-table tbody tr:hover .branch-cell {
+  background: #f8f1e2 !important;
 }
 
 .branch-head {
