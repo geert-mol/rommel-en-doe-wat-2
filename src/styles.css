@@ -284,7 +284,7 @@ button:hover {
   border-color: var(--accent);
 }
 
-.sidebar-delete {
+.sidebar-item-action {
   position: absolute;
   top: 50%;
   right: 0.4rem;
@@ -296,19 +296,31 @@ button:hover {
   padding: 0;
   border-color: #dfcfb7;
   background: #f8f1e4;
-  color: #92503a;
+  color: #5f6870;
   opacity: 0;
   pointer-events: none;
 }
 
-.sidebar-item:hover .sidebar-delete,
-.sidebar-item:focus-within .sidebar-delete {
+.sidebar-item:hover .sidebar-item-action,
+.sidebar-item:focus-within .sidebar-item-action {
   opacity: 1;
   pointer-events: auto;
 }
 
-.sidebar-delete:hover,
-.sidebar-delete:focus-visible {
+.sidebar-item-action:hover,
+.sidebar-item-action:focus-visible {
+  transform: translateY(-50%);
+  background: #e7ecf0;
+  border-color: #92a4b2;
+  color: #22313d;
+}
+
+.sidebar-item-action-danger {
+  color: #92503a;
+}
+
+.sidebar-item-action-danger:hover,
+.sidebar-item-action-danger:focus-visible {
   transform: translateY(-50%);
   background: #f6dfd7;
   border-color: #df7d63;
@@ -1049,6 +1061,30 @@ button:hover {
   display: flex;
   justify-content: flex-end;
   gap: 0.4rem;
+}
+
+.product-edit-modal {
+  width: min(520px, 94vw);
+}
+
+.product-edit-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 0.8rem;
+}
+
+.product-edit-form {
+  gap: 0.75rem;
+}
+
+.product-edit-actions {
+  align-items: center;
+}
+
+.product-edit-actions .danger-mini {
+  margin-right: auto;
 }
 
 .update-backdrop {

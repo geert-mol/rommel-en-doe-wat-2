@@ -23,6 +23,13 @@ type DeleteTarget =
   | { kind: "project"; id: string; label: string }
   | { kind: "product"; id: string; label: string };
 
+interface ProductEditDraft {
+  id: string;
+  productId: string;
+  name: string;
+  folderPath: string;
+}
+
 const nextPartNumberForProduct = (partNumbers: string[]): string => {
   const maxValue = partNumbers.reduce((max, partNumber) => {
     const parsed = Number.parseInt(partNumber, 10);
@@ -46,6 +53,19 @@ const TrashIcon = () => (
   </svg>
 );
 
+const EditIcon = () => (
+  <svg className="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="m4 16.5 9.9-9.9 3.5 3.5-9.9 9.9-4.5 1 1-4.5Zm11.3-11.3 1.4-1.4a1.5 1.5 0 0 1 2.1 0l1.4 1.4a1.5 1.5 0 0 1 0 2.1l-1.4 1.4-3.5-3.5Z"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+    />
+  </svg>
+);
+
 function App() {
   const {
     state,
@@ -57,6 +77,7 @@ function App() {
     dispatch,
     addProject,
     addProduct,
+    updateProduct,
     deleteProject,
     deleteProduct,
     replaceState
@@ -71,6 +92,7 @@ function App() {
   const [isUpdatePromptOpen, setIsUpdatePromptOpen] = useState(false);
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductEditDraft | null>(null);
   const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
   const [parentDropdownRect, setParentDropdownRect] = useState<{
     top: number;
@@ -147,6 +169,19 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pendingDelete]);
+
+  useEffect(() => {
+    if (!editingProduct) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEditingProduct(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editingProduct]);
 
   useEffect(() => {
     const targetVersion = updateState?.downloadedVersion ?? updateState?.availableVersion ?? null;
@@ -282,6 +317,13 @@ function App() {
     setProductForm((prev) => ({ ...prev, folderPath: selectedPath }));
   };
 
+  const browseForEditedProductFolder = async () => {
+    if (!editingProduct) return;
+    const selectedPath = await pickDirectory(editingProduct.folderPath || undefined);
+    if (!selectedPath) return;
+    setEditingProduct((prev) => (prev ? { ...prev, folderPath: selectedPath } : prev));
+  };
+
   const exportSelectedProject = async () => {
     if (!selectedProject) return;
 
@@ -387,6 +429,21 @@ function App() {
     setPendingDelete(null);
   };
 
+  const openProductEditor = (product: typeof productsForSelectedProject[number]) => {
+    setEditingProduct({
+      id: product.id,
+      productId: product.productId,
+      name: product.name,
+      folderPath: product.folderPath ?? ""
+    });
+  };
+
+  const saveProductEdit = () => {
+    if (!editingProduct || !editingProduct.name.trim() || !editingProduct.folderPath.trim()) return;
+    updateProduct(editingProduct.id, editingProduct.name, editingProduct.folderPath);
+    setEditingProduct(null);
+  };
+
   const parentDropdown = isParentDropdownOpen && parentDropdownRect
     ? createPortal(
         <div
@@ -460,6 +517,93 @@ function App() {
             Delete {pendingDelete.kind}
           </button>
         </div>
+      </section>
+    </div>
+  ) : null;
+
+  const productEditModal = editingProduct ? (
+    <div className="confirm-backdrop" onClick={() => setEditingProduct(null)} role="presentation">
+      <section
+        className="confirm-modal product-edit-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-edit-title"
+      >
+        <div className="product-edit-header">
+          <div>
+            <p className="settings-kicker">Product details</p>
+            <h3 className="confirm-title" id="product-edit-title">
+              Edit {editingProduct.productId}
+            </h3>
+          </div>
+          <button className="ghost-btn" onClick={() => setEditingProduct(null)} type="button">
+            Close
+          </button>
+        </div>
+        <form
+          className="compact-form product-edit-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveProductEdit();
+          }}
+        >
+          <label>
+            Product name
+            <input
+              value={editingProduct.name}
+              onChange={(event) =>
+                setEditingProduct((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+              }
+              placeholder="Product name"
+            />
+          </label>
+          <label>
+            Product folder
+            <div className="field-action">
+              <input
+                value={editingProduct.folderPath}
+                onChange={(event) =>
+                  setEditingProduct((prev) =>
+                    prev ? { ...prev, folderPath: event.target.value } : prev
+                  )
+                }
+                placeholder="Product folder"
+              />
+              {desktopApp && (
+                <button className="ghost-btn" onClick={() => void browseForEditedProductFolder()} type="button">
+                  Browse
+                </button>
+              )}
+            </div>
+          </label>
+          <div className="confirm-actions product-edit-actions">
+            <button
+              className="danger-mini"
+              onClick={() => {
+                setPendingDelete({
+                  kind: "product",
+                  id: editingProduct.id,
+                  label: `product ${editingProduct.productId} ${editingProduct.name}`
+                });
+                setEditingProduct(null);
+              }}
+              type="button"
+            >
+              Delete product
+            </button>
+            <button className="ghost-btn" onClick={() => setEditingProduct(null)} type="button">
+              Cancel
+            </button>
+            <button
+              className="secondary-btn"
+              disabled={!editingProduct.name.trim() || !editingProduct.folderPath.trim()}
+              type="submit"
+            >
+              Save product
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   ) : null;
@@ -741,7 +885,7 @@ function App() {
                 </button>
                 <button
                   aria-label={`Delete project ${project.projectId} ${project.name}`}
-                  className="sidebar-delete"
+                  className="sidebar-item-action sidebar-item-action-danger"
                   onClick={() =>
                     setPendingDelete({
                       kind: "project",
@@ -848,18 +992,12 @@ function App() {
                   {product.productId} {product.name}
                 </button>
                 <button
-                  aria-label={`Delete product ${product.productId} ${product.name}`}
-                  className="sidebar-delete"
-                  onClick={() =>
-                    setPendingDelete({
-                      kind: "product",
-                      id: product.id,
-                      label: `product ${product.productId} ${product.name}`
-                    })
-                  }
+                  aria-label={`Edit product ${product.productId} ${product.name}`}
+                  className="sidebar-item-action"
+                  onClick={() => openProductEditor(product)}
                   type="button"
                 >
-                  <TrashIcon />
+                  <EditIcon />
                 </button>
                 </div>
               </li>
@@ -1013,6 +1151,7 @@ function App() {
       </div>
       {settingsModal}
       {deleteModal}
+      {productEditModal}
       {updateModal}
       {parentDropdown}
     </>

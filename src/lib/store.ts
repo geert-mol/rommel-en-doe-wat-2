@@ -47,6 +47,12 @@ interface DeleteProductPayload {
   productId: string;
 }
 
+interface UpdateProductPayload {
+  productId: string;
+  name: string;
+  folderPath: string;
+}
+
 type Action =
   | { type: "LOAD"; payload: AppState }
   | { type: "CREATE_PROJECT"; payload: { projectId: string; name: string } }
@@ -57,6 +63,7 @@ type Action =
       payload: { projectId: string; productId: string; name: string; folderPath: string };
     }
   | { type: "SELECT_PRODUCT"; payload: string }
+  | { type: "UPDATE_PRODUCT"; payload: UpdateProductPayload }
   | { type: "DELETE_PRODUCT"; payload: DeleteProductPayload }
   | {
       type: "CREATE_ELEMENT";
@@ -257,6 +264,29 @@ export const deleteProductAndCleanup = (
   };
 };
 
+export const updateProductDetails = (
+  state: AppState,
+  payload: UpdateProductPayload
+): AppState => {
+  const product = state.products.find((candidate) => candidate.id === payload.productId);
+  if (!product) return state;
+
+  return {
+    ...state,
+    products: sortById(
+      state.products.map((candidate) =>
+        candidate.id === payload.productId
+          ? {
+              ...candidate,
+              name: payload.name.trim(),
+              folderPath: payload.folderPath.trim()
+            }
+          : candidate
+      )
+    )
+  };
+};
+
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case "LOAD":
@@ -297,6 +327,8 @@ const reducer = (state: AppState, action: Action): AppState => {
     }
     case "SELECT_PRODUCT":
       return { ...state, selectedProductId: action.payload };
+    case "UPDATE_PRODUCT":
+      return updateProductDetails(state, action.payload);
     case "DELETE_PRODUCT":
       return deleteProductAndCleanup(state, action.payload);
     case "CREATE_ELEMENT": {
@@ -488,6 +520,9 @@ export const useAppStore = () => {
   const addProduct = (projectId: string, productId: string, name: string, folderPath: string) =>
     dispatch({ type: "CREATE_PRODUCT", payload: { projectId, productId, name, folderPath } });
 
+  const updateProduct = (productId: string, name: string, folderPath: string) =>
+    dispatch({ type: "UPDATE_PRODUCT", payload: { productId, name, folderPath } });
+
   const deleteProject = (projectId: string) =>
     dispatch({ type: "DELETE_PROJECT", payload: { projectId } });
 
@@ -511,6 +546,7 @@ export const useAppStore = () => {
     dispatch,
     addProject,
     addProduct,
+    updateProduct,
     deleteProject,
     deleteProduct,
     replaceState

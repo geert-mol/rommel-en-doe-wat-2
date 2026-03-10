@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  updateProductDetails,
   deleteProductAndCleanup,
   deleteProjectAndCleanup,
   deleteVersionAndCleanup
@@ -211,6 +212,43 @@ describe("deleteProductAndCleanup", () => {
     expect(result.elements.map((element) => element.id)).toEqual(["lamp"]);
     expect(result.selectedProjectId).toBe("project-1");
     expect(result.selectedProductId).toBeUndefined();
+  });
+});
+
+describe("updateProductDetails", () => {
+  it("updates the product name and folder path while keeping selection", () => {
+    const state: AppState = {
+      projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
+      products: [
+        {
+          id: "product-1",
+          projectId: "project-1",
+          productId: "001",
+          name: "Desk",
+          folderPath: "D:/Products/Desk"
+        }
+      ],
+      elements: [],
+      selectedProjectId: "project-1",
+      selectedProductId: "product-1"
+    };
+
+    const result = updateProductDetails(state, {
+      productId: "product-1",
+      name: "Desk XL",
+      folderPath: "D:/Products/Desk XL"
+    });
+
+    expect(result.products).toEqual([
+      {
+        id: "product-1",
+        projectId: "project-1",
+        productId: "001",
+        name: "Desk XL",
+        folderPath: "D:/Products/Desk XL"
+      }
+    ]);
+    expect(result.selectedProductId).toBe("product-1");
   });
 });
 
