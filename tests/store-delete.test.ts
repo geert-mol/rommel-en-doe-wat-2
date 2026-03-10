@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  updateProjectDetails,
   updateProductDetails,
   deleteProductAndCleanup,
   deleteProjectAndCleanup,
@@ -249,6 +250,25 @@ describe("updateProductDetails", () => {
       }
     ]);
     expect(result.selectedProductId).toBe("product-1");
+  });
+});
+
+describe("updateProjectDetails", () => {
+  it("updates the project name while keeping selection", () => {
+    const state: AppState = {
+      projects: [{ id: "project-1", projectId: "001", name: "Alpha" }],
+      products: [],
+      elements: [],
+      selectedProjectId: "project-1"
+    };
+
+    const result = updateProjectDetails(state, {
+      projectId: "project-1",
+      name: "Alpha Prime"
+    });
+
+    expect(result.projects).toEqual([{ id: "project-1", projectId: "001", name: "Alpha Prime" }]);
+    expect(result.selectedProjectId).toBe("project-1");
   });
 });
 

@@ -30,6 +30,12 @@ interface ProductEditDraft {
   folderPath: string;
 }
 
+interface ProjectEditDraft {
+  id: string;
+  projectId: string;
+  name: string;
+}
+
 const nextPartNumberForProduct = (partNumbers: string[]): string => {
   const maxValue = partNumbers.reduce((max, partNumber) => {
     const parsed = Number.parseInt(partNumber, 10);
@@ -39,19 +45,6 @@ const nextPartNumberForProduct = (partNumbers: string[]): string => {
 
   return String(maxValue + 1).padStart(2, "0");
 };
-
-const TrashIcon = () => (
-  <svg className="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-1 6h2v8H8V9Zm6 0h2v8h-2V9ZM7 7h10l-1 13H8L7 7Z"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.5"
-    />
-  </svg>
-);
 
 const EditIcon = () => (
   <svg className="trash-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -76,6 +69,7 @@ function App() {
     storageError,
     dispatch,
     addProject,
+    updateProject,
     addProduct,
     updateProduct,
     deleteProject,
@@ -92,6 +86,7 @@ function App() {
   const [isUpdatePromptOpen, setIsUpdatePromptOpen] = useState(false);
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
+  const [editingProject, setEditingProject] = useState<ProjectEditDraft | null>(null);
   const [editingProduct, setEditingProduct] = useState<ProductEditDraft | null>(null);
   const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
   const [parentDropdownRect, setParentDropdownRect] = useState<{
@@ -182,6 +177,19 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [editingProduct]);
+
+  useEffect(() => {
+    if (!editingProject) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEditingProject(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editingProject]);
 
   useEffect(() => {
     const targetVersion = updateState?.downloadedVersion ?? updateState?.availableVersion ?? null;
@@ -324,10 +332,8 @@ function App() {
     setEditingProduct((prev) => (prev ? { ...prev, folderPath: selectedPath } : prev));
   };
 
-  const exportSelectedProject = async () => {
-    if (!selectedProject) return;
-
-    const payload = buildProjectExportPayload(state, selectedProject.id);
+  const exportProject = async (projectId: string) => {
+    const payload = buildProjectExportPayload(state, projectId);
     if (!payload) {
       setExportFeedback("Project export failed.");
       return;
@@ -442,6 +448,21 @@ function App() {
     if (!editingProduct || !editingProduct.name.trim() || !editingProduct.folderPath.trim()) return;
     updateProduct(editingProduct.id, editingProduct.name, editingProduct.folderPath);
     setEditingProduct(null);
+  };
+
+  const openProjectEditor = (project: typeof state.projects[number]) => {
+    setExportFeedback(null);
+    setEditingProject({
+      id: project.id,
+      projectId: project.projectId,
+      name: project.name
+    });
+  };
+
+  const saveProjectEdit = () => {
+    if (!editingProject || !editingProject.name.trim()) return;
+    updateProject(editingProject.id, editingProject.name);
+    setEditingProject(null);
   };
 
   const parentDropdown = isParentDropdownOpen && parentDropdownRect
@@ -601,6 +622,85 @@ function App() {
               type="submit"
             >
               Save product
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  ) : null;
+
+  const projectEditModal = editingProject ? (
+    <div className="confirm-backdrop" onClick={() => setEditingProject(null)} role="presentation">
+      <section
+        className="confirm-modal product-edit-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-edit-title"
+      >
+        <div className="product-edit-header">
+          <div>
+            <p className="settings-kicker">Project details</p>
+            <h3 className="confirm-title" id="project-edit-title">
+              Edit {editingProject.projectId}
+            </h3>
+          </div>
+          <button className="ghost-btn" onClick={() => setEditingProject(null)} type="button">
+            Close
+          </button>
+        </div>
+        <form
+          className="compact-form product-edit-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveProjectEdit();
+          }}
+        >
+          <label>
+            Project name
+            <input
+              value={editingProject.name}
+              onChange={(event) =>
+                setEditingProject((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+              }
+              placeholder="Project name"
+            />
+          </label>
+          {desktopApp ? (
+            <button
+              className="secondary-btn"
+              disabled={isExporting}
+              onClick={() => void exportProject(editingProject.id)}
+              type="button"
+            >
+              {isExporting ? "Exporting..." : "Export Project Excel"}
+            </button>
+          ) : null}
+          {exportFeedback ? (
+            <p className="helper-text mono-hint" title={exportFeedback}>
+              {exportFeedback}
+            </p>
+          ) : null}
+          <div className="confirm-actions product-edit-actions">
+            <button
+              className="danger-mini"
+              onClick={() => {
+                setPendingDelete({
+                  kind: "project",
+                  id: editingProject.id,
+                  label: `project ${editingProject.projectId} ${editingProject.name}`
+                });
+                setEditingProject(null);
+              }}
+              type="button"
+            >
+              Delete project
+            </button>
+            <button className="ghost-btn" onClick={() => setEditingProject(null)} type="button">
+              Cancel
+            </button>
+            <button className="secondary-btn" disabled={!editingProject.name.trim()} type="submit">
+              Save project
             </button>
           </div>
         </form>
@@ -884,40 +984,17 @@ function App() {
                   {project.projectId} {project.name}
                 </button>
                 <button
-                  aria-label={`Delete project ${project.projectId} ${project.name}`}
-                  className="sidebar-item-action sidebar-item-action-danger"
-                  onClick={() =>
-                    setPendingDelete({
-                      kind: "project",
-                      id: project.id,
-                      label: `project ${project.projectId} ${project.name}`
-                    })
-                  }
+                  aria-label={`Edit project ${project.projectId} ${project.name}`}
+                  className="sidebar-item-action"
+                  onClick={() => openProjectEditor(project)}
                   type="button"
                 >
-                  <TrashIcon />
+                  <EditIcon />
                 </button>
                 </div>
               </li>
             ))}
           </ul>
-          {desktopApp && selectedProject && (
-            <>
-              <button
-                className="project-export-btn"
-                disabled={isExporting}
-                onClick={() => void exportSelectedProject()}
-                type="button"
-              >
-                {isExporting ? "Exporting..." : "Export Project Excel"}
-              </button>
-              {exportFeedback && (
-                <p className="helper-text mono-hint" title={exportFeedback}>
-                  {exportFeedback}
-                </p>
-              )}
-            </>
-          )}
           </section>
 
           <section className="panel">
@@ -1151,6 +1228,7 @@ function App() {
       </div>
       {settingsModal}
       {deleteModal}
+      {projectEditModal}
       {productEditModal}
       {updateModal}
       {parentDropdown}
