@@ -132,8 +132,23 @@ const laneColor = (lane: number): string => LANE_COLORS[lane % LANE_COLORS.lengt
 
 const xForLane = (lane: number): number => GRAPH_PAD + lane * LANE_STEP + 6;
 
-const copyToClipboard = async (value: string): Promise<void> => {
-  await navigator.clipboard.writeText(value);
+const copyToClipboard = async (value: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const showMissingFileFeedback = async (targetPath: string): Promise<void> => {
+  const didCopy = await copyToClipboard(targetPath);
+  if (didCopy) {
+    window.alert("File not found. Full path copied to clipboard.");
+    return;
+  }
+
+  window.alert(`File not found.\n\nExpected path:\n${targetPath}`);
 };
 
 const CopyIcon = () => (
@@ -194,8 +209,7 @@ const openPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didOpen = await openFilePath(targetPath);
   if (didOpen) return;
 
-  await copyToClipboard(targetPath);
-  window.alert("File not found. Full path copied to clipboard.");
+  await showMissingFileFeedback(targetPath);
 };
 
 const openFirstAvailablePathWithFeedback = async (targetPaths: string[]): Promise<void> => {
@@ -206,16 +220,25 @@ const openFirstAvailablePathWithFeedback = async (targetPaths: string[]): Promis
 
   const fallbackPath = targetPaths[0];
   if (!fallbackPath) return;
-  await copyToClipboard(fallbackPath);
-  window.alert("File not found. Full path copied to clipboard.");
+  await showMissingFileFeedback(fallbackPath);
+};
+
+const revealFirstAvailablePathWithFeedback = async (targetPaths: string[]): Promise<void> => {
+  for (const targetPath of targetPaths) {
+    const didReveal = await revealFilePath(targetPath);
+    if (didReveal) return;
+  }
+
+  const fallbackPath = targetPaths[0];
+  if (!fallbackPath) return;
+  await showMissingFileFeedback(fallbackPath);
 };
 
 const revealPathWithFeedback = async (targetPath: string): Promise<void> => {
   const didReveal = await revealFilePath(targetPath);
   if (didReveal) return;
 
-  await copyToClipboard(targetPath);
-  window.alert("File not found. Full path copied to clipboard.");
+  await showMissingFileFeedback(targetPath);
 };
 
 const KebabMenu = ({
@@ -638,7 +661,12 @@ export const ElementListView = ({
   };
 
   const copyFilenameWithFeedback = async (copyId: string, value: string) => {
-    await copyToClipboard(value);
+    const didCopy = await copyToClipboard(value);
+    if (!didCopy) {
+      window.alert(`Could not copy to clipboard.\n\nValue:\n${value}`);
+      return;
+    }
+
     setCopiedFilenameId(copyId);
 
     if (copiedFilenameTimerRef.current !== null) {
@@ -748,13 +776,22 @@ export const ElementListView = ({
                       >
                         <div className="history-export-control">
                           {isEnabled ? (
-                            <button
-                              className="mini-btn history-export-open"
-                              onClick={() => void openFirstAvailablePathWithFeedback(exportPaths)}
-                              type="button"
-                            >
-                              Open
-                            </button>
+                            <div className="history-export-actions">
+                              <button
+                                className="mini-btn history-export-open"
+                                onClick={() => void openFirstAvailablePathWithFeedback(exportPaths)}
+                                type="button"
+                              >
+                                Open
+                              </button>
+                              <button
+                                className="mini-btn history-export-reveal"
+                                onClick={() => void revealFirstAvailablePathWithFeedback(exportPaths)}
+                                type="button"
+                              >
+                                Reveal
+                              </button>
+                            </div>
                           ) : null}
                           <button
                             aria-label={isEnabled ? `Remove ${field.label}` : `Enable ${field.label}`}
