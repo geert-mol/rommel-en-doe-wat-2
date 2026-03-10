@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 export interface SidebarReorderItem {
   id: string;
@@ -41,19 +41,6 @@ const EditIcon = () => (
 const arraysEqual = (left: string[], right: string[]): boolean =>
   left.length === right.length && left.every((value, index) => value === right[index]);
 
-const moveItem = (ids: string[], movedId: string, targetIndex: number): string[] => {
-  const currentIndex = ids.indexOf(movedId);
-  if (currentIndex === -1) return ids;
-
-  const nextIds = [...ids];
-  nextIds.splice(currentIndex, 1);
-
-  const adjustedTargetIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
-  const clampedIndex = Math.max(0, Math.min(adjustedTargetIndex, nextIds.length));
-  nextIds.splice(clampedIndex, 0, movedId);
-  return nextIds;
-};
-
 export function SidebarReorderList({
   items,
   onSelect,
@@ -62,12 +49,13 @@ export function SidebarReorderList({
 }: SidebarReorderListProps) {
   const itemRefs = useRef(new Map<string, HTMLLIElement>());
   const itemRectsRef = useRef(new Map<string, DOMRect>());
-  const didDropRef = useRef(false);
+  const dragPointerIdRef = useRef<number | null>(null);
+  const dragHandleRef = useRef<HTMLButtonElement | null>(null);
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [previewIds, setPreviewIds] = useState(itemIds);
-  const effectivePreviewIds = draggedId ? previewIds : itemIds;
+  const [previewIds, setPreviewIds] = useState<string[] | null>(null);
+  const effectivePreviewIds = previewIds ?? itemIds;
   const renderedItems = effectivePreviewIds
     .map((id) => itemById.get(id))
     .filter((item): item is SidebarReorderItem => item !== undefined);
@@ -103,53 +91,92 @@ export function SidebarReorderList({
     };
   }, [renderedItems]);
 
-  const commitOrder = () => {
-    if (!arraysEqual(effectivePreviewIds, itemIds)) {
-      onReorder(effectivePreviewIds);
-    }
-    setDraggedId(null);
-  };
+  useEffect(() => {
+    if (!draggedId) return;
 
-  const handleDragStart = (itemId: string, event: DragEvent<HTMLButtonElement>) => {
-    didDropRef.current = false;
+    const getNextPreviewIds = (clientY: number): string[] => {
+      const currentIds = previewIds ?? itemIds;
+      const remainingIds = currentIds.filter((id) => id !== draggedId);
+      let insertIndex = remainingIds.length;
+
+      for (const [index, itemId] of remainingIds.entries()) {
+        const rect = itemRefs.current.get(itemId)?.getBoundingClientRect();
+        if (!rect) continue;
+        if (clientY < rect.top + rect.height / 2) {
+          insertIndex = index;
+          break;
+        }
+      }
+
+      return [
+        ...remainingIds.slice(0, insertIndex),
+        draggedId,
+        ...remainingIds.slice(insertIndex)
+      ];
+    };
+
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      if (dragPointerIdRef.current !== event.pointerId) return;
+      const nextIds = getNextPreviewIds(event.clientY);
+      setPreviewIds((currentPreviewIds) => {
+        const resolvedCurrentIds = currentPreviewIds ?? itemIds;
+        return arraysEqual(resolvedCurrentIds, nextIds) ? currentPreviewIds : nextIds;
+      });
+    };
+
+    const finishDrag = (shouldCommit: boolean) => {
+      const pointerId = dragPointerIdRef.current;
+      if (pointerId !== null && dragHandleRef.current?.hasPointerCapture(pointerId)) {
+        dragHandleRef.current.releasePointerCapture(pointerId);
+      }
+
+      if (shouldCommit && !arraysEqual(previewIds ?? itemIds, itemIds)) {
+        onReorder(previewIds ?? itemIds);
+      }
+
+      dragPointerIdRef.current = null;
+      setPreviewIds(null);
+      setDraggedId(null);
+      dragHandleRef.current = null;
+    };
+
+    const handlePointerUp = (event: globalThis.PointerEvent) => {
+      if (dragPointerIdRef.current !== event.pointerId) return;
+      finishDrag(true);
+    };
+
+    const handlePointerCancel = (event: globalThis.PointerEvent) => {
+      if (dragPointerIdRef.current !== event.pointerId) return;
+      finishDrag(false);
+    };
+
+    const handleWindowBlur = () => {
+      finishDrag(false);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    window.addEventListener("blur", handleWindowBlur);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [draggedId, itemIds, onReorder, previewIds]);
+
+  const handlePointerDown = (
+    itemId: string,
+    event: PointerEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    dragPointerIdRef.current = event.pointerId;
+    dragHandleRef.current = event.currentTarget;
+    event.currentTarget.setPointerCapture(event.pointerId);
     setDraggedId(itemId);
     setPreviewIds(itemIds);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", itemId);
-  };
-
-  const handleDragOver = (itemId: string, event: DragEvent<HTMLLIElement>) => {
-    if (!draggedId) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const targetIndex = effectivePreviewIds.indexOf(itemId);
-    if (targetIndex === -1) return;
-
-    const shouldInsertAfter = event.clientY > rect.top + rect.height / 2;
-    const nextIds = moveItem(
-      effectivePreviewIds,
-      draggedId,
-      targetIndex + (shouldInsertAfter ? 1 : 0)
-    );
-    if (!arraysEqual(effectivePreviewIds, nextIds)) {
-      setPreviewIds(nextIds);
-    }
-  };
-
-  const handleDrop = (event: DragEvent<HTMLLIElement>) => {
-    if (!draggedId) return;
-    event.preventDefault();
-    didDropRef.current = true;
-    commitOrder();
-  };
-
-  const handleDragEnd = () => {
-    if (!didDropRef.current) {
-      setPreviewIds(itemIds);
-    }
-    setDraggedId(null);
   };
 
   return (
@@ -165,16 +192,12 @@ export function SidebarReorderList({
             }
           }}
           className={`list-item ${draggedId === item.id ? "is-dragging" : ""}`.trim()}
-          onDragOver={(event) => handleDragOver(item.id, event)}
-          onDrop={handleDrop}
         >
           <div className="sidebar-item sidebar-item-reorderable">
             <button
               aria-label={`Reorder ${item.label}`}
               className="sidebar-reorder-handle"
-              draggable
-              onDragEnd={handleDragEnd}
-              onDragStart={(event) => handleDragStart(item.id, event)}
+              onPointerDown={(event) => handlePointerDown(item.id, event)}
               type="button"
             >
               <GripIcon />
