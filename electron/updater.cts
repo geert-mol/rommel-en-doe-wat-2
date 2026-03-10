@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { existsSync } from "node:fs";
+import https from "node:https";
 import path from "node:path";
 import { logError, logInfo } from "./logger.cjs";
 
@@ -14,16 +15,33 @@ type UpdateStatus =
   | "no-update"
   | "error";
 
+interface UpdateReleaseNote {
+  version: string;
+  title: string;
+  body: string;
+  publishedAt?: string;
+}
+
 interface UpdateState {
   status: UpdateStatus;
   currentVersion: string;
   availableVersion?: string;
   downloadedVersion?: string;
+  releaseNotes?: UpdateReleaseNote[];
   progressPercent?: number;
   transferredBytes?: number;
   totalBytes?: number;
   message?: string;
   checkedAt?: string;
+}
+
+interface GitHubReleaseResponse {
+  tag_name?: string;
+  name?: string;
+  body?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  published_at?: string;
 }
 
 const updateChannel = "updater:state-changed";
@@ -37,6 +55,10 @@ let currentState: UpdateState = {
 let didInitialize = false;
 let isChecking = false;
 let checkTimer: NodeJS.Timeout | null = null;
+let isDownloading = false;
+
+const githubReleasesUrl =
+  "https://api.github.com/repos/geert-mol/rommel-en-doe-wat-2/releases?per_page=20";
 
 const getUpdaterConfigPath = (): string => path.join(process.resourcesPath, "app-update.yml");
 
@@ -50,6 +72,103 @@ const getUnsupportedMessage = (): string => {
   }
 
   return `Automatic updates are unavailable because ${getUpdaterConfigPath()} is missing.`;
+};
+
+const parseVersion = (version: string): [number, number, number] => {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim());
+  if (!match) {
+    throw new Error(`Invalid semantic version: ${version}`);
+  }
+
+  return [
+    Number.parseInt(match[1], 10),
+    Number.parseInt(match[2], 10),
+    Number.parseInt(match[3], 10)
+  ];
+};
+
+const compareVersions = (left: string, right: string): number => {
+  const leftParts = parseVersion(left);
+  const rightParts = parseVersion(right);
+
+  for (let index = 0; index < leftParts.length; index += 1) {
+    const delta = leftParts[index] - rightParts[index];
+    if (delta !== 0) return delta;
+  }
+
+  return 0;
+};
+
+const normalizeReleaseVersion = (tagName?: string): string | null => {
+  if (!tagName) return null;
+  const normalized = tagName.trim().replace(/^v/i, "");
+  return /^\d+\.\d+\.\d+$/.test(normalized) ? normalized : null;
+};
+
+const requestJson = (url: string): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": `rommel-en-doe-wat/${app.getVersion()}`
+        }
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => {
+          const rawBody = Buffer.concat(chunks).toString("utf8");
+          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
+            reject(new Error(`GitHub releases request failed (${response.statusCode ?? "unknown"}).`));
+            return;
+          }
+
+          try {
+            resolve(JSON.parse(rawBody));
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
+      }
+    );
+
+    request.on("error", reject);
+  });
+
+const fetchMissedReleaseNotes = async (
+  currentVersion: string,
+  targetVersion: string
+): Promise<UpdateReleaseNote[]> => {
+  const response = await requestJson(githubReleasesUrl);
+  if (!Array.isArray(response)) {
+    throw new Error("Unexpected GitHub releases response.");
+  }
+
+  const releases = response
+    .filter((release): release is GitHubReleaseResponse => typeof release === "object" && release !== null)
+    .filter((release) => !release.draft && !release.prerelease)
+    .map<UpdateReleaseNote | null>((release) => {
+      const version = normalizeReleaseVersion(release.tag_name);
+      if (!version) return null;
+      return {
+        version,
+        title: release.name?.trim() || `v${version}`,
+        body: release.body?.trim() || "No release notes.",
+        publishedAt: release.published_at
+      };
+    });
+
+  return releases
+    .filter((release): release is UpdateReleaseNote => release !== null)
+    .filter(
+      (release) =>
+        compareVersions(release.version, currentVersion) > 0 &&
+        compareVersions(release.version, targetVersion) <= 0
+    )
+    .sort((left, right) => compareVersions(left.version, right.version));
 };
 
 const broadcastState = () => {
@@ -94,6 +213,9 @@ const checkForUpdates = async (): Promise<UpdateState> => {
     setState({
       status: "checking",
       checkedAt: new Date().toISOString(),
+      availableVersion: undefined,
+      downloadedVersion: undefined,
+      releaseNotes: undefined,
       message: "Checking for updates...",
       progressPercent: undefined,
       transferredBytes: undefined,
@@ -108,6 +230,31 @@ const checkForUpdates = async (): Promise<UpdateState> => {
     });
   } finally {
     isChecking = false;
+  }
+
+  return currentState;
+};
+
+const downloadAvailableUpdate = async (): Promise<UpdateState> => {
+  if (currentState.status !== "available") {
+    return currentState;
+  }
+
+  if (isDownloading) {
+    return currentState;
+  }
+
+  try {
+    isDownloading = true;
+    await autoUpdater.downloadUpdate();
+  } catch (error) {
+    logError("Update download failed.", error);
+    setState({
+      status: "error",
+      message: error instanceof Error ? error.message : "Update download failed."
+    });
+  } finally {
+    isDownloading = false;
   }
 
   return currentState;
@@ -128,6 +275,7 @@ const installDownloadedUpdate = (): void => {
 export const registerUpdaterHandlers = () => {
   ipcMain.handle("updater:get-state", () => currentState);
   ipcMain.handle("updater:check", async () => checkForUpdates());
+  ipcMain.handle("updater:download", async () => downloadAvailableUpdate());
   ipcMain.handle("updater:install", () => {
     installDownloadedUpdate();
   });
@@ -149,7 +297,7 @@ export const initializeAutoUpdater = () => {
     return;
   }
 
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.disableWebInstaller = false;
   autoUpdater.allowPrerelease = false;
@@ -175,8 +323,21 @@ export const initializeAutoUpdater = () => {
     setState({
       status: "available",
       availableVersion: info.version,
-      message: `Version ${info.version} available. Downloading now...`
+      downloadedVersion: undefined,
+      releaseNotes: undefined,
+      message: `Version ${info.version} available. Review notes and choose when to download.`
     });
+
+    void fetchMissedReleaseNotes(app.getVersion(), info.version)
+      .then((releaseNotes) => {
+        setState({
+          releaseNotes,
+          message: `Version ${info.version} available. Review notes and choose when to download.`
+        });
+      })
+      .catch((error) => {
+        logError("Could not fetch release notes.", error);
+      });
   });
 
   autoUpdater.on("download-progress", (progress) => {
@@ -206,6 +367,7 @@ export const initializeAutoUpdater = () => {
       status: "no-update",
       availableVersion: undefined,
       downloadedVersion: undefined,
+      releaseNotes: undefined,
       progressPercent: undefined,
       transferredBytes: undefined,
       totalBytes: undefined,
@@ -217,6 +379,7 @@ export const initializeAutoUpdater = () => {
     logError("Updater error.", error);
     setState({
       status: "error",
+      releaseNotes: undefined,
       message: error == null ? "Updater error." : error.message
     });
   });

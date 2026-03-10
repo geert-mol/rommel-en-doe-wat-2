@@ -1051,6 +1051,86 @@ button:hover {
   gap: 0.4rem;
 }
 
+.update-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at top right, rgba(217, 72, 31, 0.18), transparent 28%),
+    rgba(16, 25, 32, 0.44);
+  backdrop-filter: blur(10px);
+}
+
+.update-modal {
+  width: min(780px, 96vw);
+  max-height: 86vh;
+  overflow: auto;
+  border: 1px solid #d8ceb7;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.98), rgba(248, 242, 230, 0.96)),
+    #fffdf8;
+  box-shadow: 0 22px 44px rgba(16, 25, 32, 0.24);
+  padding: 1rem;
+}
+
+.update-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.update-copy,
+.update-progress {
+  margin-top: 0.55rem;
+}
+
+.update-notes-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.update-note-card {
+  border: 1px solid #ddd3bc;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.85rem 0.9rem;
+}
+
+.update-note-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.update-note-head h3 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.update-note-head .helper-text {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.update-note-body {
+  margin: 0.55rem 0 0;
+  white-space: pre-wrap;
+  font: inherit;
+  line-height: 1.45;
+  color: #2f3942;
+}
+
+.update-actions {
+  margin-top: 1rem;
+}
+
 .parent-select-label {
   margin-top: 0.75rem;
 }

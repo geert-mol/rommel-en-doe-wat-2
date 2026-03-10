@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("rndDesktop", {
   updater: {
     getState: () => ipcRenderer.invoke("updater:get-state"),
     check: () => ipcRenderer.invoke("updater:check"),
+    download: () => ipcRenderer.invoke("updater:download"),
     install: () => ipcRenderer.invoke("updater:install"),
     subscribe: (listener: (state: unknown) => void) => {
       const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {

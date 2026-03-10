@@ -4,6 +4,7 @@ import { ElementListView } from "./components/ElementListView";
 import { exportDesktopBackup, restoreDesktopBackup } from "./lib/desktop-backup";
 import {
   checkForDesktopUpdates,
+  downloadDesktopUpdate,
   getDesktopUpdateState,
   installDesktopUpdate,
   subscribeToDesktopUpdates,
@@ -67,6 +68,8 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [isUpdateActionBusy, setIsUpdateActionBusy] = useState(false);
+  const [isUpdatePromptOpen, setIsUpdatePromptOpen] = useState(false);
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
   const [parentDropdownRect, setParentDropdownRect] = useState<{
@@ -144,6 +147,31 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pendingDelete]);
+
+  useEffect(() => {
+    const targetVersion = updateState?.downloadedVersion ?? updateState?.availableVersion ?? null;
+    const shouldPrompt =
+      targetVersion !== null &&
+      (updateState?.status === "available" ||
+        updateState?.status === "downloading" ||
+        updateState?.status === "downloaded");
+
+    if (!shouldPrompt) {
+      setIsUpdatePromptOpen(false);
+      return;
+    }
+
+    if (dismissedUpdateVersion === targetVersion) {
+      return;
+    }
+
+    setIsUpdatePromptOpen(true);
+  }, [
+    dismissedUpdateVersion,
+    updateState?.availableVersion,
+    updateState?.downloadedVersion,
+    updateState?.status
+  ]);
 
   useEffect(() => {
     if (!isParentDropdownOpen) return;
@@ -335,6 +363,18 @@ function App() {
     }
   };
 
+  const downloadUpdate = async () => {
+    setIsUpdateActionBusy(true);
+    try {
+      const nextState = await downloadDesktopUpdate();
+      if (nextState) {
+        setUpdateState(nextState);
+      }
+    } finally {
+      setIsUpdateActionBusy(false);
+    }
+  };
+
   const installUpdate = async () => {
     setIsUpdateActionBusy(true);
     await installDesktopUpdate();
@@ -390,10 +430,14 @@ function App() {
   const updateActionLabel =
     updateState?.status === "checking"
       ? "Checking..."
+      : updateState?.status === "available"
+        ? "Download Update"
       : updateState?.status === "downloading"
         ? "Downloading..."
         : "Check for Updates";
   const currentVersionLabel = updateState?.currentVersion ?? "Unknown";
+  const promptVersion = updateState?.downloadedVersion ?? updateState?.availableVersion ?? null;
+  const releaseNotes = updateState?.releaseNotes ?? [];
 
   const deleteModal = pendingDelete ? (
     <div className="confirm-backdrop" onClick={() => setPendingDelete(null)} role="presentation">
@@ -424,6 +468,114 @@ function App() {
       </section>
     </div>
   ) : null;
+
+  const updateModal =
+    desktopApp && isUpdatePromptOpen && promptVersion ? (
+      <div
+        className="update-backdrop"
+        onClick={() => {
+          setDismissedUpdateVersion(promptVersion);
+          setIsUpdatePromptOpen(false);
+        }}
+        role="presentation"
+      >
+        <section
+          className="update-modal"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="update-title"
+        >
+          <div className="update-header">
+            <div>
+              <p className="settings-kicker">Desktop update</p>
+              <h2 id="update-title">
+                {updateState?.status === "downloaded"
+                  ? `Version ${promptVersion} ready`
+                  : `Version ${promptVersion} available`}
+              </h2>
+            </div>
+            <button
+              className="settings-close"
+              onClick={() => {
+                setDismissedUpdateVersion(promptVersion);
+                setIsUpdatePromptOpen(false);
+              }}
+              type="button"
+            >
+              Later
+            </button>
+          </div>
+          <p className="helper-text update-copy">
+            {updateState?.message ??
+              `Version ${promptVersion} is available. Review the missed release notes below.`}
+          </p>
+          {updateState?.status === "downloading" &&
+          typeof updateState.progressPercent === "number" ? (
+            <p className="helper-text update-progress">
+              {Math.round(updateState.progressPercent)}% downloaded
+            </p>
+          ) : null}
+          <div className="update-notes-list">
+            {releaseNotes.length > 0 ? (
+              releaseNotes.map((note) => (
+                <article key={note.version} className="update-note-card">
+                  <div className="update-note-head">
+                    <h3>{note.title}</h3>
+                    <p className="helper-text">
+                      {note.publishedAt ? new Date(note.publishedAt).toLocaleDateString() : null}
+                    </p>
+                  </div>
+                  <pre className="update-note-body">{note.body}</pre>
+                </article>
+              ))
+            ) : (
+              <article className="update-note-card">
+                <div className="update-note-head">
+                  <h3>Version {promptVersion}</h3>
+                </div>
+                <pre className="update-note-body">Release notes are not available.</pre>
+              </article>
+            )}
+          </div>
+          <div className="confirm-actions update-actions">
+            <button
+              className="ghost-btn"
+              onClick={() => {
+                setDismissedUpdateVersion(promptVersion);
+                setIsUpdatePromptOpen(false);
+              }}
+              type="button"
+            >
+              Later
+            </button>
+            {updateState?.status === "downloaded" ? (
+              <button
+                className="secondary-btn"
+                disabled={isUpdateActionBusy}
+                onClick={() => void installUpdate()}
+                type="button"
+              >
+                Install and Restart
+              </button>
+            ) : (
+              <button
+                className="secondary-btn"
+                disabled={
+                  isUpdateActionBusy ||
+                  updateState?.status === "checking" ||
+                  updateState?.status === "downloading"
+                }
+                onClick={() => void downloadUpdate()}
+                type="button"
+              >
+                {updateState?.status === "downloading" ? "Downloading..." : "Download Update"}
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+    ) : null;
 
   const settingsModal = isSettingsOpen ? (
     <div className="settings-backdrop" onClick={() => setIsSettingsOpen(false)} role="presentation">
@@ -511,8 +663,8 @@ function App() {
           <section className="settings-card">
             <h3>Updates</h3>
             <p className="helper-text settings-copy">
-              Packaged desktop builds check GitHub Releases for newer versions and download them in
-              the background.
+              Packaged desktop builds check GitHub Releases for newer versions and show release
+              notes before you choose to download.
             </p>
             <div className="settings-status-list">
               <p className="helper-text">
@@ -535,7 +687,9 @@ function App() {
                     updateState?.status === "checking" ||
                     updateState?.status === "downloading"
                   }
-                  onClick={() => void checkForUpdates()}
+                  onClick={() =>
+                    void (updateState?.status === "available" ? downloadUpdate() : checkForUpdates())
+                  }
                   type="button"
                 >
                   {updateActionLabel}
@@ -567,7 +721,7 @@ function App() {
                 <p>Prototype PDM cockpit</p>
               </div>
               <button
-                className={`settings-launcher ${storageError || updateState?.status === "downloaded" ? "has-alert" : ""}`.trim()}
+                className={`settings-launcher ${storageError || updateState?.status === "downloaded" || updateState?.status === "available" ? "has-alert" : ""}`.trim()}
                 onClick={() => setIsSettingsOpen(true)}
                 type="button"
               >
@@ -881,6 +1035,7 @@ function App() {
       </div>
       {settingsModal}
       {deleteModal}
+      {updateModal}
       {parentDropdown}
     </>
   );

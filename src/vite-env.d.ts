@@ -29,6 +29,7 @@ interface DesktopBridge {
   updater: {
     getState: () => Promise<import("./lib/desktop-updater").DesktopUpdateState>;
     check: () => Promise<import("./lib/desktop-updater").DesktopUpdateState>;
+    download: () => Promise<import("./lib/desktop-updater").DesktopUpdateState>;
     install: () => Promise<void>;
     subscribe: (
       listener: (state: import("./lib/desktop-updater").DesktopUpdateState) => void

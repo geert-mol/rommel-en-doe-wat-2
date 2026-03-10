@@ -125,6 +125,8 @@ function Publish-GitHubRelease {
     [Parameter(Mandatory = $true)]
     [string]$Version,
     [Parameter(Mandatory = $true)]
+    [string]$NotesFilePath,
+    [Parameter(Mandatory = $true)]
     [string[]]$AssetPaths
   )
 
@@ -139,12 +141,24 @@ function Publish-GitHubRelease {
         $GitHubReleaseRepo,
         "--title",
         "v$Version",
-        "--notes",
-        "Automatic desktop release for v$Version."
+        "--notes-file",
+        $NotesFilePath
       ) + $AssetPaths
     )
     return
   }
+
+  Invoke-External -WorkingDirectory $AppRepo -Command "gh" -Arguments @(
+    "release",
+    "edit",
+    $TagName,
+    "--repo",
+    $GitHubReleaseRepo,
+    "--title",
+    "v$Version",
+    "--notes-file",
+    $NotesFilePath
+  )
 
   Invoke-External -WorkingDirectory $AppRepo -Command "gh" -Arguments (
     @("release", "upload", $TagName, "--repo", $GitHubReleaseRepo, "--clobber") + $AssetPaths
@@ -175,6 +189,7 @@ if (-not [string]::IsNullOrWhiteSpace($TargetPath)) {
 }
 $releaseTag = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "git" -Arguments @("describe", "--tags", "--abbrev=0", "--match", "v*") -AllowFailure) -join "").Trim()
 $commitLogFile = [System.IO.Path]::GetTempFileName()
+$releaseNotesFile = [System.IO.Path]::GetTempFileName()
 
 try {
   if ([string]::IsNullOrWhiteSpace($releaseTag)) {
@@ -187,6 +202,8 @@ try {
 
   $versionPlanJson = (Get-ExternalOutput -WorkingDirectory $AppRepo -Command "node" -Arguments @("scripts/release-version.mjs", $commitLogFile)) -join [Environment]::NewLine
   $versionPlan = $versionPlanJson | ConvertFrom-Json
+  $releaseNotes = (Get-ExternalOutput -WorkingDirectory $AppRepo -Command "node" -Arguments @("scripts/release-notes.mjs", $commitLogFile)) -join [Environment]::NewLine
+  [System.IO.File]::WriteAllText($releaseNotesFile, $releaseNotes)
 }
 finally {
   Remove-Item -Path $commitLogFile -Force -ErrorAction SilentlyContinue
@@ -303,7 +320,7 @@ try {
     $sourceInstallerBlockMap,
     $sourcePortable,
     $sourceLatestManifest
-  )
+  ) -NotesFilePath $releaseNotesFile
 
   $appCommitHash = (& git rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0) {
@@ -314,4 +331,5 @@ try {
 }
 finally {
   Pop-Location
+  Remove-Item -Path $releaseNotesFile -Force -ErrorAction SilentlyContinue
 }

@@ -25,6 +25,7 @@ Workflow:
    - stable installer alias `Rommel-en-doe-wat-Setup.exe`
    - NSIS blockmap
    - portable `.exe`
+   - generated GitHub Release notes based on conventional commits since the previous `v*` tag
 5. Marketing site download now points at `https://github.com/geert-mol/rommel-en-doe-wat-2/releases/latest/download/Rommel-en-doe-wat-Setup.exe`, so release no longer commits the binary into the marketing repo.
 6. Run:
 
