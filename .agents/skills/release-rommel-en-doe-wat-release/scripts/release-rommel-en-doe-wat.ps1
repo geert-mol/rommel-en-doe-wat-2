@@ -3,15 +3,16 @@ param(
   [switch]$SkipChecks,
   [switch]$SkipBuild,
   [switch]$NoCommit,
-  [string]$TargetPath = ""
+  [string]$TargetPath = "",
+  [string]$AppRepoPath = "",
+  [string]$GitHubReleaseRepo = "",
+  [string]$SourceCommitMessage = "chore: prepare release"
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$AppRepo = "C:\Users\Geert\Projects\rommel-en-doe-wat-2"
 $RemoteName = "origin"
-$GitHubReleaseRepo = "geert-mol/rommel-en-doe-wat-2"
 $VersionFiles = @("package.json", "package-lock.json")
 $AllowedGeneratedPrefixes = @("coverage/", "dist/", "dist-electron/", "release/")
 
@@ -118,6 +119,97 @@ function Get-CurrentBranchName {
   return $branchName
 }
 
+function Get-GitHubRepoSlugFromRemote {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$WorkingDirectory,
+    [Parameter(Mandatory = $true)]
+    [string]$Remote
+  )
+
+  $remoteUrl = (Get-ExternalOutput -WorkingDirectory $WorkingDirectory -Command "git" -Arguments @("remote", "get-url", $Remote)) -join ""
+  $remoteUrl = $remoteUrl.Trim()
+  if ([string]::IsNullOrWhiteSpace($remoteUrl)) {
+    throw "Could not determine remote URL for '$Remote' in $WorkingDirectory"
+  }
+
+  $match = [regex]::Match($remoteUrl, "github\.com[:/](?<slug>[^/]+/[^/.]+?)(?:\.git)?$")
+  if (-not $match.Success) {
+    throw "Remote '$Remote' is not a GitHub repository URL: $remoteUrl"
+  }
+
+  return $match.Groups["slug"].Value
+}
+
+function Get-NonGeneratedPaths {
+  param(
+    [string[]]$Paths = @()
+  )
+
+  return @(
+    $Paths |
+      Where-Object { $_ } |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -and -not (Test-IsAllowedGeneratedPath -PathValue $_) } |
+      Sort-Object -Unique
+  )
+}
+
+function Invoke-PrepareSourceBranchForRelease {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$WorkingDirectory,
+    [Parameter(Mandatory = $true)]
+    [string]$BranchName,
+    [Parameter(Mandatory = $true)]
+    [string]$Remote,
+    [Parameter(Mandatory = $true)]
+    [string]$CommitMessage
+  )
+
+  $trackedPaths = Get-NonGeneratedPaths -Paths (Get-ExternalOutput -WorkingDirectory $WorkingDirectory -Command "git" -Arguments @("diff", "--name-only"))
+  $untrackedPaths = Get-NonGeneratedPaths -Paths (Get-ExternalOutput -WorkingDirectory $WorkingDirectory -Command "git" -Arguments @("ls-files", "--others", "--exclude-standard"))
+  $pathsToStage = @(($trackedPaths + $untrackedPaths) | Sort-Object -Unique)
+
+  if ($pathsToStage.Count -gt 0) {
+    $addArgs = @("add", "-A", "--") + $pathsToStage
+    Invoke-External -WorkingDirectory $WorkingDirectory -Command "git" -Arguments $addArgs
+  }
+
+  Push-Location $WorkingDirectory
+  try {
+    & git diff --cached --quiet
+    if ($LASTEXITCODE -gt 1) {
+      throw "git diff --cached failed with exit code $LASTEXITCODE"
+    }
+
+    if ($LASTEXITCODE -eq 1) {
+      & git commit -m $CommitMessage
+      if ($LASTEXITCODE -ne 0) {
+        throw "git commit failed with exit code $LASTEXITCODE"
+      }
+
+      $sourceCommitHash = (& git rev-parse HEAD).Trim()
+      if ($LASTEXITCODE -ne 0) {
+        throw "git rev-parse HEAD failed with exit code $LASTEXITCODE"
+      }
+
+      Write-Host ("Created source commit {0} ({1})" -f $sourceCommitHash, $CommitMessage)
+    }
+    else {
+      Write-Host "No source commit needed before release."
+    }
+
+    & git push $Remote $BranchName
+    if ($LASTEXITCODE -ne 0) {
+      throw "git push failed with exit code $LASTEXITCODE"
+    }
+  }
+  finally {
+    Pop-Location
+  }
+}
+
 function Publish-GitHubRelease {
   param(
     [Parameter(Mandatory = $true)]
@@ -165,10 +257,29 @@ function Publish-GitHubRelease {
   )
 }
 
+$defaultAppRepo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
+$AppRepo = if ([string]::IsNullOrWhiteSpace($AppRepoPath)) {
+  $defaultAppRepo
+}
+else {
+  [System.IO.Path]::GetFullPath($AppRepoPath)
+}
+
 if (-not (Test-Path $AppRepo -PathType Container)) {
   throw "App repo not found: $AppRepo"
 }
 
+$repoRoot = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "git" -Arguments @("rev-parse", "--show-toplevel")) -join "").Trim()
+if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+  throw "Could not determine git repo root for $AppRepo"
+}
+$AppRepo = $repoRoot
+
+if ([string]::IsNullOrWhiteSpace($GitHubReleaseRepo)) {
+  $GitHubReleaseRepo = Get-GitHubRepoSlugFromRemote -WorkingDirectory $AppRepo -Remote $RemoteName
+}
+
+$appBranchName = Get-CurrentBranchName -WorkingDirectory $AppRepo
 $appStatusLines = Get-RepoStatusLines -WorkingDirectory $AppRepo
 $unexpectedAppChanges = @(
   $appStatusLines |
@@ -179,8 +290,13 @@ $unexpectedAppChanges = @(
     }
 )
 
-if ($unexpectedAppChanges.Count -gt 0) {
-  throw "App repo has unexpected source changes. Commit or stash before release: $($unexpectedAppChanges -join '; ')"
+if (-not $NoCommit) {
+  if ($unexpectedAppChanges.Count -gt 0) {
+    Invoke-PrepareSourceBranchForRelease -WorkingDirectory $AppRepo -BranchName $appBranchName -Remote $RemoteName -CommitMessage $SourceCommitMessage
+  }
+  else {
+    Invoke-External -WorkingDirectory $AppRepo -Command "git" -Arguments @("push", $RemoteName, $appBranchName)
+  }
 }
 
 $resolvedTargetPath = ""
@@ -265,7 +381,6 @@ if ($NoCommit) {
   exit 0
 }
 
-$appBranchName = Get-CurrentBranchName -WorkingDirectory $AppRepo
 $releaseTagName = "v$version"
 $existingTag = ((Get-ExternalOutput -WorkingDirectory $AppRepo -Command "git" -Arguments @("tag", "--list", $releaseTagName)) -join "").Trim()
 if ($existingTag -eq $releaseTagName) {

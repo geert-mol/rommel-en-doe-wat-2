@@ -1,4 +1,4 @@
 interface:
   display_name: "Release Rommel en doe wat"
-  short_description: "Build, copy, and commit the Windows installer"
-  default_prompt: "Use $release-rommel-en-doe-wat to build the Windows installer, copy it to the marketing download path, and commit that installer update."
+  short_description: "Commit, push, build, and publish the Windows installer from any local clone"
+  default_prompt: "Use $release-rommel-en-doe-wat-release to commit and push pending source changes, then build the Windows installer and publish the GitHub Release assets from the current repo clone."
