@@ -2,6 +2,11 @@
 
 Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
 
+## 
+
+- I am a complete noob when it comes to programming or programming terms. Always check intentions with the user before implementation when the question is unclear.
+- I am a Dutch person with dyslexia, I will ask questions in Dutch, but implement logic in English.
+
 ## Agent Protocol
 
 - PRs: use `gh pr view/diff` (no URLs).

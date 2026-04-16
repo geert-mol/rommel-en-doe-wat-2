@@ -712,7 +712,7 @@ button:hover {
 }
 
 .data-table tbody tr:hover td {
-  background: #f8f1e2;
+  background: #e8d27a;
 }
 
 .branch-cell {
@@ -725,7 +725,7 @@ button:hover {
 }
 
 .data-table tbody tr:hover .branch-cell {
-  background: #f8f1e2 !important;
+  background: #e8d27a !important;
 }
 
 .branch-head {
